@@ -165,7 +165,7 @@ app.post('/api/chat', async (req, res) => {
 // Serve React build in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
-  app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
+  app.use((_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 }
 
 app.listen(PORT, () => console.log(`🚀 FieldInsight Two-Way Comms — port ${PORT}`));
