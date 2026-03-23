@@ -126,11 +126,13 @@ export default function ClientSchedule() {
                     title={cfg.label ? `${fmtTime(hour)} – ${cfg.label}` : undefined}
                   >
                     {status === 'open' && <span className="cs-open-dot" />}
-                    {status === 'partial' && <span className="cs-partial-count">
-                      {activeTechs.filter(tech =>
+                    {status === 'partial' && (() => {
+                      const free = activeTechs.filter(tech =>
                         !jobs.some(j => j.tech === tech && j.date === d.iso && j.startHour <= hour && hour < j.startHour + j.duration)
-                      ).length}/{activeTechs.length}
-                    </span>}
+                      ).length;
+                      const mins = Math.round((free / activeTechs.length) * 60);
+                      return <span className="cs-partial-count">{mins}min</span>;
+                    })()}
                   </div>
                 );
               })}
