@@ -180,7 +180,7 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const resp = await anthropicClient.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5',
       max_tokens: 600,
       system: buildSystem(channel || 'web'),
       messages: messages.filter(m => !m.hidden).map(m => ({ role: m.role, content: m.content })),
