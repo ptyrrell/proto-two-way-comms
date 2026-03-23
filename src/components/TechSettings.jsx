@@ -19,12 +19,24 @@ function fmtHour(h) {
 
 const HOUR_OPTIONS = Array.from({ length: 17 }, (_, i) => i + 6);
 
+const ALL_JOB_TYPES = [
+  { id: 'HVAC',              icon: '❄️', desc: 'Heating, ventilation & A/C' },
+  { id: 'Electrical',        icon: '⚡', desc: 'Electrical work & repairs' },
+  { id: 'Plumbing',          icon: '🔧', desc: 'Plumbing & drainage' },
+  { id: 'General',           icon: '🔨', desc: 'General maintenance' },
+  { id: 'Quote',             icon: '📋', desc: 'Customer describes work, team calls back to arrange' },
+  { id: 'Service/Breakdown', icon: '🚨', desc: 'Emergency / reactive service, asks for unit & location' },
+];
+
 const DEFAULT_PROMPT = {
-  personaName:        'Fiona',
-  companyName:        'FieldInsight',
-  greeting:           "Hi! I'm Fiona from FieldInsight. Would you like to book a service job today?",
-  showTechNames:      false,
-  customInstructions: '',
+  personaName:           'Fiona',
+  companyName:           'FieldInsight',
+  greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today?",
+  showTechNames:         false,
+  collectContactDetails: true,
+  enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
+  customInstructions:    '',
+  customFullPrompt:      null,
 };
 
 export default function TechSettings({ onClose }) {
@@ -36,7 +48,10 @@ export default function TechSettings({ onClose }) {
     startHour:   8,
     endHour:     17,
   });
-  const [promptSettings, setPromptSettings] = useState(DEFAULT_PROMPT);
+  const [promptSettings,  setPromptSettings]  = useState(DEFAULT_PROMPT);
+  const [promptPreview,   setPromptPreview]   = useState('');
+  const [editingFullPrompt, setEditingFullPrompt] = useState(false);
+  const [fullPromptDraft, setFullPromptDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
@@ -44,7 +59,12 @@ export default function TechSettings({ onClose }) {
     fetch('/api/settings/techs').then(r => r.json()).then(d => setTechSettings(d));
     fetch('/api/settings/booking').then(r => r.json()).then(d => setBookingSettings(d));
     fetch('/api/settings/prompt').then(r => r.json()).then(d => setPromptSettings(d));
+    fetch('/api/settings/prompt/preview').then(r => r.json()).then(d => setPromptPreview(d.prompt || ''));
   }, []);
+
+  const refreshPreview = () => {
+    fetch('/api/settings/prompt/preview').then(r => r.json()).then(d => setPromptPreview(d.prompt || ''));
+  };
 
   const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 1800); };
 
@@ -74,6 +94,30 @@ export default function TechSettings({ onClose }) {
     });
     setSaving(false);
     flash();
+    setTimeout(refreshPreview, 200);
+  };
+
+  const toggleJobType = (id) => {
+    const cur = promptSettings.enabledJobTypes || [];
+    const next = cur.includes(id) ? cur.filter(t => t !== id) : [...cur, id];
+    savePrompt({ enabledJobTypes: next });
+  };
+
+  const enterFullEdit = () => {
+    setFullPromptDraft(promptSettings.customFullPrompt || promptPreview);
+    setEditingFullPrompt(true);
+  };
+
+  const saveFullPrompt = async () => {
+    await savePrompt({ customFullPrompt: fullPromptDraft.trim() || null });
+    setEditingFullPrompt(false);
+  };
+
+  const resetFullPrompt = async () => {
+    setFullPromptDraft('');
+    await savePrompt({ customFullPrompt: null });
+    setEditingFullPrompt(false);
+    setTimeout(refreshPreview, 300);
   };
 
   /* ─── Booking rules save ───────────────────────────── */
@@ -302,16 +346,32 @@ export default function TechSettings({ onClose }) {
             </div>
           </div>
 
+          {/* Collect contact details toggle */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Collect Contact Details</div>
+              <div className="br-desc">Ask customer to confirm mobile &amp; email — sends confirmation &amp; reminder</div>
+            </div>
+            <div className="br-control">
+              <button
+                className={`toggle-btn${promptSettings.collectContactDetails ? ' on' : ' off'}`}
+                onClick={() => savePrompt({ collectContactDetails: !promptSettings.collectContactDetails })}
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
+
           {/* Custom instructions */}
           <div className="br-row br-row-col">
             <div className="br-label">
               <div className="br-title">Custom Instructions</div>
-              <div className="br-desc">Extra rules appended to the system prompt (e.g. "always upsell a service plan")</div>
+              <div className="br-desc">Extra rules appended to the auto-built prompt</div>
             </div>
             <textarea
               className="br-textarea"
               value={promptSettings.customInstructions}
-              rows={3}
+              rows={2}
               onChange={e => setPromptSettings(p => ({ ...p, customInstructions: e.target.value }))}
               onBlur={e => savePrompt({ customInstructions: e.target.value })}
               placeholder="e.g. Always offer a 12-month maintenance plan at the end of the booking."
@@ -319,6 +379,65 @@ export default function TechSettings({ onClose }) {
           </div>
 
         </div>
+
+        {/* ─── JOB TYPES SECTION ──────────────────────────── */}
+        <div className="settings-section-label" style={{ marginTop: '20px' }}>
+          <span>🗂</span> Enabled Job Types
+        </div>
+        <div className="job-types-grid">
+          {ALL_JOB_TYPES.map(jt => {
+            const on = (promptSettings.enabledJobTypes || []).includes(jt.id);
+            return (
+              <button
+                key={jt.id}
+                className={`jt-chip${on ? ' on' : ' off'}`}
+                onClick={() => toggleJobType(jt.id)}
+                title={jt.desc}
+              >
+                <span className="jt-icon">{jt.icon}</span>
+                <span className="jt-label">{jt.id}</span>
+                <span className={`jt-dot${on ? ' on' : ''}`} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="jt-hint">
+          {ALL_JOB_TYPES.filter(jt => (promptSettings.enabledJobTypes||[]).includes(jt.id)).map(jt => (
+            <span key={jt.id} className="jt-desc-item">{jt.icon} <strong>{jt.id}</strong> — {jt.desc}</span>
+          ))}
+        </div>
+
+        {/* ─── FULL PROMPT EDITOR ─────────────────────────── */}
+        <div className="settings-section-label" style={{ marginTop: '20px' }}>
+          <span>📝</span> Full System Prompt
+          {promptSettings.customFullPrompt && <span className="prompt-custom-badge">Custom</span>}
+        </div>
+
+        {editingFullPrompt ? (
+          <div className="prompt-editor">
+            <div className="prompt-editor-hint">
+              Available tokens: <code>{'{TODAY}'}</code> <code>{'{SLOTS}'}</code> <code>{'{PERSONA}'}</code> <code>{'{COMPANY}'}</code> <code>{'{CHANNEL}'}</code>
+            </div>
+            <textarea
+              className="br-textarea prompt-full-textarea"
+              value={fullPromptDraft}
+              rows={16}
+              onChange={e => setFullPromptDraft(e.target.value)}
+            />
+            <div className="prompt-editor-actions">
+              <button className="pe-btn pe-save" onClick={saveFullPrompt}>Save Custom Prompt</button>
+              <button className="pe-btn pe-reset" onClick={resetFullPrompt}>Reset to Auto-build</button>
+              <button className="pe-btn pe-cancel" onClick={() => setEditingFullPrompt(false)}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <div className="prompt-preview">
+            <pre className="prompt-preview-text">{promptPreview || 'Loading…'}</pre>
+            <button className="pe-btn pe-edit" onClick={enterFullEdit}>
+              {promptSettings.customFullPrompt ? '✏️ Edit Custom Prompt' : '✏️ Edit / Override Prompt'}
+            </button>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="settings-footer">

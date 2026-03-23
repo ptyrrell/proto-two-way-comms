@@ -2,9 +2,11 @@ import { useState, useCallback, useRef } from 'react';
 import { useSchedule } from '../context/ScheduleContext';
 
 export function useChat(channel) {
-  const [messages, setMessages] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastBooking, setLastBooking] = useState(null);
+  const [messages,     setMessages]     = useState([]);
+  const [isLoading,    setIsLoading]    = useState(false);
+  const [lastBooking,  setLastBooking]  = useState(null);
+  const [needsAddress, setNeedsAddress] = useState(false);
+  const [needsContact, setNeedsContact] = useState(false);
   const initiated = useRef(false);
   const { addJob } = useSchedule();
 
@@ -12,14 +14,23 @@ export function useChat(channel) {
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: msgs.filter(m => !m.hidden),
-        channel,
-      }),
+      body: JSON.stringify({ messages: msgs.filter(m => !m.hidden), channel }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   }, [channel]);
+
+  const handleData = useCallback((data) => {
+    setNeedsAddress(!!data.needsAddress);
+    setNeedsContact(!!data.needsContact);
+    if (data.booking) {
+      addJob(data.booking);
+      setLastBooking(data.booking);
+      // Clear smart inputs after booking is confirmed
+      setNeedsAddress(false);
+      setNeedsContact(false);
+    }
+  }, [addJob]);
 
   const initiate = useCallback(async () => {
     if (initiated.current) return;
@@ -31,18 +42,23 @@ export function useChat(channel) {
         { role: 'user', content: 'Hello', hidden: true },
         { role: 'assistant', content: data.text, ts: new Date() },
       ]);
+      handleData(data);
     } catch {
       setMessages([{
         role: 'assistant',
-        content: "Hi! 👋 Welcome to FieldInsight. Would you like to book a service job today?",
+        content: "Hi! Welcome to FieldInsight. How can I help you today?",
         ts: new Date(),
       }]);
     }
     setIsLoading(false);
-  }, [callApi]);
+  }, [callApi, handleData]);
 
   const sendMessage = useCallback(async (text) => {
     if (!text.trim() || isLoading) return;
+    // Clear smart input state as soon as user responds
+    setNeedsAddress(false);
+    setNeedsContact(false);
+
     const userMsg = { role: 'user', content: text, ts: new Date() };
     const next = [...messages, userMsg];
     setMessages(next);
@@ -52,11 +68,7 @@ export function useChat(channel) {
       const data = await callApi(next);
       const assistantMsg = { role: 'assistant', content: data.text, ts: new Date() };
       setMessages(prev => [...prev, assistantMsg]);
-
-      if (data.booking) {
-        addJob(data.booking);
-        setLastBooking(data.booking);
-      }
+      handleData(data);
       setIsLoading(false);
       return data;
     } catch (e) {
@@ -67,7 +79,7 @@ export function useChat(channel) {
       }]);
       setIsLoading(false);
     }
-  }, [messages, isLoading, callApi, addJob]);
+  }, [messages, isLoading, callApi, handleData]);
 
-  return { messages, isLoading, sendMessage, initiate, lastBooking };
+  return { messages, isLoading, sendMessage, initiate, lastBooking, needsAddress, needsContact };
 }

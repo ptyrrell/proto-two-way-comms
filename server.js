@@ -38,11 +38,14 @@ let bookingSettings = {
 
 // AI persona & prompt settings
 let promptSettings = {
-  personaName:        'Fiona',
-  companyName:        'FieldInsight',
-  greeting:           'Hi! I\'m Fiona from FieldInsight. Would you like to book a service job today?',
-  showTechNames:      false,    // when false, Fiona never mentions technician names to the customer
-  customInstructions: '',       // extra instructions appended to the system prompt
+  personaName:           'Fiona',
+  companyName:           'FieldInsight',
+  greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today?",
+  showTechNames:         false,
+  collectContactDetails: true,
+  enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
+  customInstructions:    '',
+  customFullPrompt:      null,   // when set, overrides the auto-built prompt; supports tokens: {TODAY} {SLOTS} {PERSONA} {COMPANY}
 };
 
 const TYPE_META = {
@@ -108,58 +111,122 @@ function getAvailableSlots() {
   return slots.slice(0, 12);
 }
 
-function buildSystem(channel) {
+function buildSlotList(showTechNames) {
   const slots = getAvailableSlots();
-  const today = new Date().toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-
-  const { personaName, companyName, greeting, showTechNames, customInstructions } = promptSettings;
-
-  const style = {
-    web:   'conversational chat — warm, friendly, use short paragraphs',
-    sms:   'SMS — concise messages, no markdown, under 160 chars each when possible',
-    email: `email — professional friendly tone, greet by name once known, sign off as "${companyName} Team"`,
-    voip:  'phone call — speak naturally as if on a live phone call, no markdown, keep responses short and clear',
-  }[channel] || 'conversational';
-
-  // Build slot list — hide or show tech names based on setting
-  const slotList = slots.map((s, i) => {
+  if (!slots.length) return '  No slots currently available — apologise and suggest calling the office.';
+  return slots.map((s, i) => {
     const timeLabel = new Date(s.date).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
     return showTechNames
       ? `  ${i+1}. ${s.label}`
       : `  ${i+1}. ${timeLabel} at ${s.startHour}:00–${s.startHour + 2}:00`;
   }).join('\n');
+}
 
-  // Internal tech routing (always present so Fiona picks the right tech for the BOOKING JSON)
+function buildSystem(channel) {
+  const today    = new Date().toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const slotList = buildSlotList(promptSettings.showTechNames);
+  const { personaName, companyName, greeting, enabledJobTypes, collectContactDetails, customInstructions, customFullPrompt } = promptSettings;
+
+  // ── Custom full prompt override ──
+  if (customFullPrompt?.trim()) {
+    return customFullPrompt
+      .replace(/\{TODAY\}/g, today)
+      .replace(/\{SLOTS\}/g, slotList)
+      .replace(/\{PERSONA\}/g, personaName)
+      .replace(/\{COMPANY\}/g, companyName)
+      .replace(/\{CHANNEL\}/g, channel);
+  }
+
+  // ── Channel style ──
+  const style = {
+    web:   'conversational web chat — warm, friendly, short paragraphs',
+    sms:   'SMS — brief, plain text, under 160 chars per reply when possible',
+    email: `email — professional and friendly, greet by name once known, sign off as "${companyName} Team"`,
+    voip:  'phone call — natural spoken language, no markdown, short sentences, no lists',
+  }[channel] || 'conversational';
+
+  // ── Job type instructions ──
+  const jobTypes = enabledJobTypes?.length ? enabledJobTypes : ['HVAC', 'Electrical', 'Plumbing', 'General'];
+  const hasQuote     = jobTypes.includes('Quote');
+  const hasBreakdown = jobTypes.includes('Service/Breakdown');
+  const standardTypes = jobTypes.filter(t => t !== 'Quote' && t !== 'Service/Breakdown');
+
+  let jobTypeSection = '';
+
+  if (standardTypes.length) {
+    jobTypeSection += `
+[STANDARD BOOKING — ${standardTypes.join(' / ')}]
+1. Ask what type of service is needed
+2. Collect service address — when you ask for address, include [NEEDS_ADDRESS] in your message
+3. Ask: for HVAC or equipment jobs, "Are you able to identify the unit type and its location? (e.g. rooftop, ceiling cassette, split system, plant room)" — skip for simple plumbing/electrical
+4. Suggest 2–3 available time slots (dates and times only, no technician names)
+5. Confirm all booking details before finalising`;
+  }
+
+  if (hasQuote) {
+    jobTypeSection += `
+
+[QUOTE REQUEST]
+1. Acknowledge warmly — a Quote means we'll need to come and assess first
+2. Ask the customer to describe the work required in as much detail as possible
+3. Ask: "Are you able to identify the unit type and its location?" (if equipment-related)
+4. Collect service address — when you ask for address, include [NEEDS_ADDRESS] in your message
+5. Do NOT offer a time slot — instead say: "Our team will review the details and call you back to arrange a convenient time to come out."
+6. Confirm contact details, then output the QUOTE JSON below`;
+  }
+
+  if (hasBreakdown) {
+    jobTypeSection += `
+
+[SERVICE / BREAKDOWN — emergency reactive]
+1. Acknowledge urgency with empathy: "I'm sorry to hear that, let's get someone out to you as soon as possible."
+2. Ask: "Are you able to identify the unit type and its location? (e.g. rooftop unit, split system, switchboard)" 
+3. Collect service address — include [NEEDS_ADDRESS] in the message where you ask
+4. Offer the earliest 2–3 available time slots
+5. Confirm all details and note urgency`;
+  }
+
+  // ── Contact collection ──
+  const contactSection = collectContactDetails ? `
+CONTACT COLLECTION (do this after confirming service details, before finalising):
+1. "Can I confirm your mobile number? We may already have it on file." → collect/confirm mobile
+2. "And your email address for the confirmation?" → collect email
+3. Once confirmed say: "Perfect — a confirmation email and SMS will be sent, and you'll receive a reminder 1 hour before your appointment."
+When you ask for contact details, include [NEEDS_CONTACT] in your message.` : '';
+
+  // ── Tech routing (internal) ──
   const techRouting = `
-INTERNAL TECH ROUTING (do NOT share tech names with the customer — use this only to populate the BOOKING JSON):
-- Jake Morrison — HVAC jobs
-- Sam Peters — Electrical jobs
-- Brad Kim — Plumbing jobs
-- Amy Chen — HVAC & General jobs
+INTERNAL TECH ROUTING — never share names with customer, use only for the BOOKING/QUOTE JSON:
+- Jake Morrison → HVAC jobs
+- Sam Peters → Electrical jobs  
+- Brad Kim → Plumbing / Service/Breakdown jobs
+- Amy Chen → HVAC & General jobs`;
 
-Each available slot maps to a specific technician internally. When generating the BOOKING JSON, choose the correct technician for the job type.`;
-
-  const extra = customInstructions?.trim()
-    ? `\nADDITIONAL INSTRUCTIONS:\n${customInstructions.trim()}`
-    : '';
+  const extra = customInstructions?.trim() ? `\nADDITIONAL INSTRUCTIONS:\n${customInstructions.trim()}` : '';
 
   return `You are ${personaName}, a friendly ${companyName} service booking assistant. Channel: ${channel}. Style: ${style}.
 
 Today: ${today}
 
-Your opening greeting (use on first message): "${greeting}"
+Opening greeting (first message only): "${greeting}"
 
-BOOKING FLOW:
-1. Use the opening greeting above
-2. Collect: customer name, job type (HVAC/Plumbing/Electrical/General), service address, preferred date/time
-3. Suggest 2–3 available time slots from the list below — present dates and times only, never mention technician names
-4. Confirm all details with the customer
-5. When customer confirms, output EXACTLY this JSON on its own line (no surrounding text):
-   BOOKING:{"tech":"NAME","customer":"NAME","type":"TYPE","address":"ADDR","date":"YYYY-MM-DD","startHour":9,"duration":2,"amount":0,"status":"pending"}
+JOB TYPE FLOWS:
+${jobTypeSection}
+${contactSection}
 
-AVAILABLE TIME SLOTS (next 2 weeks):
-${slotList || '  No slots currently available — apologise and suggest calling the office.'}
+AVAILABLE TIME SLOTS (next 2 weeks — times only, no names):
+${slotList}
 ${techRouting}
+
+OUTPUT FORMATS (output on its own line when confirmed, no surrounding text):
+
+Standard booking:
+BOOKING:{"tech":"NAME","customer":"NAME","type":"TYPE","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"YYYY-MM-DD","startHour":9,"duration":2,"amount":0,"status":"pending"}
+
+Quote request:
+BOOKING:{"tech":"TBD","customer":"NAME","type":"Quote","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"TBD","startHour":0,"duration":0,"amount":0,"status":"quote-pending","description":"DESCRIPTION OF WORK"}
+
+ADDRESS VALIDATION: When repeating an address back, confirm it clearly. If it sounds like an apartment or commercial premises, ask for unit/level/access details.
 
 Keep responses brief and action-oriented. Never mention technician names to the customer.${extra}`;
 }
@@ -191,12 +258,57 @@ app.get('/api/settings/prompt', (_req, res) => {
 });
 
 app.post('/api/settings/prompt', (req, res) => {
-  const allowed = ['personaName', 'companyName', 'greeting', 'showTechNames', 'customInstructions'];
+  const allowed = ['personaName','companyName','greeting','showTechNames','collectContactDetails','enabledJobTypes','customInstructions','customFullPrompt'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) promptSettings[key] = req.body[key];
   }
-  console.log('Prompt settings updated:', promptSettings);
+  console.log('Prompt settings updated');
   res.json({ ok: true, promptSettings });
+});
+
+// Expose a read-only preview of the compiled system prompt
+app.get('/api/settings/prompt/preview', (req, res) => {
+  const { channel = 'web' } = req.query;
+  res.json({ prompt: buildSystem(channel) });
+});
+
+// Client-safe config (public keys only)
+app.get('/api/config', (_req, res) => {
+  res.json({ googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null });
+});
+
+// Address validation via Google Geocoding (or basic format check if no key)
+app.post('/api/validate-address', async (req, res) => {
+  const { address } = req.body;
+  if (!address?.trim()) return res.json({ ok: false, message: 'No address provided' });
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    // No API key — return basic confirmation so flow can continue
+    return res.json({ ok: true, validated: false, formattedAddress: address.trim(), message: 'Validation unavailable — address accepted as entered' });
+  }
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&region=au&key=${apiKey}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (data.status === 'OK' && data.results.length > 0) {
+      const r = data.results[0];
+      return res.json({
+        ok: true,
+        validated: true,
+        formattedAddress: r.formatted_address,
+        lat: r.geometry.location.lat,
+        lng: r.geometry.location.lng,
+        placeId: r.place_id,
+      });
+    }
+    return res.json({ ok: false, validated: false, message: 'Address not found — please double-check' });
+  } catch (e) {
+    console.error('Geocoding error:', e.message);
+    return res.json({ ok: true, validated: false, formattedAddress: address.trim(), message: 'Validation unavailable' });
+  }
 });
 
 app.post('/api/settings/booking', (req, res) => {
@@ -229,7 +341,14 @@ app.post('/api/chat', async (req, res) => {
     });
 
     const raw = resp.content[0].text;
-    const match = raw.match(/BOOKING:(\{[^}]+\})/s);
+    // Strip [NEEDS_ADDRESS] and [NEEDS_CONTACT] markers from displayed text
+    const displayText = raw
+      .replace(/BOOKING:\{[\s\S]*?\}/g, '')
+      .replace(/\[NEEDS_ADDRESS\]/g, '')
+      .replace(/\[NEEDS_CONTACT\]/g, '')
+      .trim();
+
+    const match = raw.match(/BOOKING:([\s\S]*?\})/);
     let booking = null;
 
     if (match) {
@@ -244,7 +363,11 @@ app.post('/api/chat', async (req, res) => {
       } catch (e) { console.error('Booking parse error', e); }
     }
 
-    res.json({ text: raw.replace(/BOOKING:\{[^}]+\}/s, '').trim(), booking });
+    // Tell the client what smart inputs are needed
+    const needsAddress = raw.includes('[NEEDS_ADDRESS]');
+    const needsContact = raw.includes('[NEEDS_CONTACT]');
+
+    res.json({ text: displayText, booking, needsAddress, needsContact });
   } catch (err) {
     console.error('Claude error:', err.message);
     res.status(500).json({ error: err.message });
