@@ -2,10 +2,14 @@ import express from 'express';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import twilio from 'twilio';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: false })); // required for Twilio form-encoded webhooks
+
+const BASE_URL = process.env.BASE_URL || 'https://fi-two-way-comms-5c8b7580a98c.herokuapp.com';
 
 const PORT = process.env.PORT || 3001;
 
@@ -21,6 +25,17 @@ try {
 } catch (e) {
   console.log('Anthropic SDK not available:', e.message);
 }
+
+// ── Twilio client ───────────────────────────────────────────────────
+const twilioClient = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
+if (twilioClient) console.log('✓ Twilio client initialised');
+else console.log('⚠  No Twilio credentials — voice IVR will be simulated');
+
+// ── In-memory voice sessions ────────────────────────────────────────
+// Map<callSid, { from, history, turnCount, startedAt, status, booking, turns }>
+const voiceSessions = new Map();
 
 // ── In-memory schedule ─────────────────────────────────────────────
 const TECHS = ['Jake Morrison', 'Sam Peters', 'Brad Kim', 'Amy Chen'];
@@ -281,7 +296,7 @@ app.get('/api/settings/prompt', (_req, res) => {
 });
 
 app.post('/api/settings/prompt', (req, res) => {
-  const allowed = ['personaName','companyName','greeting','showTechNames','collectContactDetails','enabledJobTypes','customInstructions','customFullPrompt'];
+  const allowed = ['personaName','companyName','greeting','showTechNames','collectContactDetails','enabledJobTypes','requiredFields','customInstructions','customFullPrompt'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) promptSettings[key] = req.body[key];
   }
@@ -297,7 +312,11 @@ app.get('/api/settings/prompt/preview', (req, res) => {
 
 // Client-safe config (public keys only)
 app.get('/api/config', (_req, res) => {
-  res.json({ googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null });
+  res.json({
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null,
+    voiceNumber:      process.env.TWILIO_FROM_NUMBER || null,
+    voiceEnabled:     !!twilioClient,
+  });
 });
 
 // Address validation via Google Geocoding (or basic format check if no key)
@@ -394,6 +413,228 @@ app.post('/api/chat', async (req, res) => {
   } catch (err) {
     console.error('Claude error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Voice IVR helpers ───────────────────────────────────────────────
+
+function xmlEsc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+// Strip everything that shouldn't be spoken aloud
+function forVoice(text) {
+  return text
+    .replace(/BOOKING:\{[\s\S]*?\}/g, '')
+    .replace(/\[NEEDS_ADDRESS\]/g, '')
+    .replace(/\[NEEDS_CONTACT\]/g, '')
+    .replace(/[*_`#>]/g, '')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/\n{2,}/g, ' ')
+    .trim();
+}
+
+function buildTwiML(spokenText, actionUrl, end = false) {
+  const safe = xmlEsc(spokenText);
+  if (end) {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna" language="en-AU">${safe}</Say>
+  <Hangup/>
+</Response>`;
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${actionUrl}" method="POST"
+          speechTimeout="auto" speechModel="phone_call" language="en-AU"
+          hints="HVAC,air conditioning,electrical,plumbing,booking,appointment,urgent,emergency,quote,service">
+    <Say voice="Polly.Joanna" language="en-AU">${safe}</Say>
+  </Gather>
+  <Say voice="Polly.Joanna" language="en-AU">Sorry, I didn't catch that. Let me try again.</Say>
+  <Redirect method="POST">${actionUrl}</Redirect>
+</Response>`;
+}
+
+async function claudeVoiceTurn(history) {
+  if (!anthropicClient) {
+    const isFirst = history.filter(m => m.role === 'user').length <= 1;
+    return isFirst
+      ? `${promptSettings.greeting} Would you like to book a job with us today?`
+      : "Thanks for that. Could you tell me a bit more about what you need?";
+  }
+  const resp = await anthropicClient.messages.create({
+    model:      'claude-haiku-4-5',
+    max_tokens: 400,
+    system:     buildSystem('voip'),
+    messages:   history,
+  });
+  return resp.content[0].text;
+}
+
+// ── /api/voice/incoming — inbound call webhook ──────────────────────
+app.post('/api/voice/incoming', (req, res) => {
+  const { CallSid, From, To } = req.body;
+  console.log(`📞 Inbound call  CallSid=${CallSid}  From=${From}`);
+
+  voiceSessions.set(CallSid, {
+    from:       From || 'unknown',
+    to:         To   || process.env.TWILIO_FROM_NUMBER,
+    history:    [],
+    turns:      [],
+    turnCount:  0,
+    startedAt:  new Date().toISOString(),
+    status:     'active',
+    booking:    null,
+  });
+
+  const greeting = xmlEsc(promptSettings.greeting || "Hi! I'm Fiona from FieldInsight. How can I help you today?");
+  const actionUrl = `${BASE_URL}/api/voice/process`;
+
+  res.set('Content-Type', 'text/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="${actionUrl}" method="POST"
+          speechTimeout="auto" speechModel="phone_call" language="en-AU"
+          hints="HVAC,air conditioning,electrical,plumbing,booking,appointment,urgent,emergency,quote,service">
+    <Say voice="Polly.Joanna" language="en-AU">${greeting}</Say>
+  </Gather>
+  <Say voice="Polly.Joanna" language="en-AU">I didn't catch that. Let me try again.</Say>
+  <Redirect method="POST">${actionUrl}</Redirect>
+</Response>`);
+});
+
+// ── /api/voice/process — each speech turn ──────────────────────────
+app.post('/api/voice/process', async (req, res) => {
+  const { CallSid, SpeechResult, Confidence } = req.body;
+  const actionUrl = `${BASE_URL}/api/voice/process`;
+
+  const session = voiceSessions.get(CallSid);
+  if (!session) {
+    // Unknown session — create one and redirect to start
+    res.set('Content-Type', 'text/xml');
+    return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response><Redirect method="POST">${BASE_URL}/api/voice/incoming</Redirect></Response>`);
+  }
+
+  // No speech detected — re-ask
+  if (!SpeechResult) {
+    res.set('Content-Type', 'text/xml');
+    return res.send(buildTwiML("I didn't catch that. Could you repeat what you said?", actionUrl));
+  }
+
+  // Low confidence — ask to repeat
+  if (parseFloat(Confidence || '1') < 0.35) {
+    res.set('Content-Type', 'text/xml');
+    return res.send(buildTwiML("Sorry, I had trouble hearing that. Could you say it again?", actionUrl));
+  }
+
+  // Max turns guard
+  if (session.turnCount >= 14) {
+    session.status = 'ended';
+    res.set('Content-Type', 'text/xml');
+    return res.send(buildTwiML(
+      "I'm sorry, we've reached the maximum number of turns for this call. Please call back or use our website to complete your booking. Thank you!",
+      actionUrl, true
+    ));
+  }
+
+  console.log(`🗣  CallSid=${CallSid}  Turn=${session.turnCount + 1}  Speech="${SpeechResult}"`);
+
+  // Add user turn to history
+  session.history.push({ role: 'user', content: SpeechResult });
+  session.turns.push({ role: 'user', content: SpeechResult, ts: new Date().toISOString() });
+  session.turnCount++;
+
+  try {
+    const raw = await claudeVoiceTurn(session.history);
+
+    // Detect booking
+    const match = raw.match(/BOOKING:([\s\S]*?\})/);
+    let booking = null;
+    if (match) {
+      try {
+        booking = JSON.parse(match[1]);
+        const meta = TYPE_META[booking.type] || TYPE_META.General;
+        booking.id       = `J-${++nextId}`;
+        booking.color    = meta.border;
+        booking.textColor = meta.text;
+        booking.bgColor  = meta.color;
+        jobs.push(booking);
+        session.booking  = booking;
+        console.log(`✅ Voice booking created: ${booking.id} — ${booking.customer}`);
+      } catch (e) { console.error('Voice booking parse error', e); }
+    }
+
+    const spoken = forVoice(raw);
+
+    // Add AI turn to history
+    session.history.push({ role: 'assistant', content: raw });
+    session.turns.push({ role: 'assistant', content: spoken, ts: new Date().toISOString() });
+
+    const isBookingDone = !!booking;
+    if (isBookingDone) session.status = 'ended';
+
+    res.set('Content-Type', 'text/xml');
+    res.send(buildTwiML(spoken, actionUrl, isBookingDone));
+  } catch (err) {
+    console.error('Voice Claude error:', err.message);
+    res.set('Content-Type', 'text/xml');
+    res.send(buildTwiML("I'm having a technical issue. Please try again in a moment.", actionUrl));
+  }
+});
+
+// ── /api/voice/status — Twilio call status callback ─────────────────
+app.post('/api/voice/status', (req, res) => {
+  const { CallSid, CallStatus } = req.body;
+  const session = voiceSessions.get(CallSid);
+  if (session) {
+    session.status = ['completed', 'busy', 'failed', 'no-answer', 'canceled'].includes(CallStatus)
+      ? 'ended' : CallStatus;
+    console.log(`📴 CallSid=${CallSid}  Status=${CallStatus}`);
+    // Keep session in map for 5 minutes so frontend can poll the result
+    setTimeout(() => voiceSessions.delete(CallSid), 5 * 60 * 1000);
+  }
+  res.sendStatus(204);
+});
+
+// ── /api/voice/sessions — frontend polls this for live transcripts ──
+app.get('/api/voice/sessions', (_req, res) => {
+  const list = Array.from(voiceSessions.values()).map(s => ({
+    from:      s.from,
+    status:    s.status,
+    turnCount: s.turnCount,
+    startedAt: s.startedAt,
+    turns:     s.turns,
+    booking:   s.booking,
+  }));
+  res.json({ sessions: list });
+});
+
+// ── /api/voice/configure — auto-set webhook on the Twilio number ────
+app.post('/api/voice/configure', async (_req, res) => {
+  if (!twilioClient) return res.json({ ok: false, error: 'Twilio not configured' });
+  const fromNumber = process.env.TWILIO_FROM_NUMBER;
+  if (!fromNumber) return res.json({ ok: false, error: 'TWILIO_FROM_NUMBER not set' });
+
+  try {
+    const numbers = await twilioClient.incomingPhoneNumbers.list({ phoneNumber: fromNumber });
+    if (!numbers.length) return res.json({ ok: false, error: `Number ${fromNumber} not found in this Twilio account` });
+
+    const pn = numbers[0];
+    await twilioClient.incomingPhoneNumbers(pn.sid).update({
+      voiceUrl:              `${BASE_URL}/api/voice/incoming`,
+      voiceMethod:           'POST',
+      statusCallback:        `${BASE_URL}/api/voice/status`,
+      statusCallbackMethod:  'POST',
+    });
+
+    console.log(`✓ Voice webhook configured: ${fromNumber} → ${BASE_URL}/api/voice/incoming`);
+    res.json({ ok: true, number: fromNumber, webhookUrl: `${BASE_URL}/api/voice/incoming` });
+  } catch (e) {
+    console.error('Voice configure error:', e.message);
+    res.json({ ok: false, error: e.message });
   }
 });
 
