@@ -1,6 +1,9 @@
-const express = require('express');
-const path = require('path');
+import express from 'express';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
 
@@ -8,7 +11,7 @@ const PORT = process.env.PORT || 3001;
 
 let anthropicClient = null;
 try {
-  const Anthropic = require('@anthropic-ai/sdk');
+  const { default: Anthropic } = await import('@anthropic-ai/sdk');
   if (process.env.ANTHROPIC_API_KEY) {
     anthropicClient = new Anthropic();
     console.log('✓ Anthropic client initialised');
