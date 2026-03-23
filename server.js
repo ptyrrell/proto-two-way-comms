@@ -36,6 +36,15 @@ let bookingSettings = {
   endHour:      17,             // last bookable start hour (5 PM, so jobs end by 6 PM)
 };
 
+// AI persona & prompt settings
+let promptSettings = {
+  personaName:        'Fiona',
+  companyName:        'FieldInsight',
+  greeting:           'Hi! I\'m Fiona from FieldInsight. Would you like to book a service job today?',
+  showTechNames:      false,    // when false, Fiona never mentions technician names to the customer
+  customInstructions: '',       // extra instructions appended to the system prompt
+};
+
 const TYPE_META = {
   HVAC:       { color: '#1e4a6e', border: '#2563eb', text: '#93c5fd' },
   Electrical: { color: '#3b1f6e', border: '#7c3aed', text: '#c4b5fd' },
@@ -101,38 +110,58 @@ function getAvailableSlots() {
 
 function buildSystem(channel) {
   const slots = getAvailableSlots();
-  const slotList = slots.map((s, i) => `  ${i+1}. ${s.label}`).join('\n');
   const today = new Date().toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  const { personaName, companyName, greeting, showTechNames, customInstructions } = promptSettings;
 
   const style = {
     web:   'conversational chat — warm, friendly, use short paragraphs',
     sms:   'SMS — concise messages, no markdown, under 160 chars each when possible',
-    email: 'email — professional friendly tone, greet by name once known, sign off as "FieldInsight Team"',
-    voip:  'phone call — speak naturally as if on a live phone call, no markdown, use "um" or natural pauses sparingly',
+    email: `email — professional friendly tone, greet by name once known, sign off as "${companyName} Team"`,
+    voip:  'phone call — speak naturally as if on a live phone call, no markdown, keep responses short and clear',
   }[channel] || 'conversational';
 
-  return `You are a friendly FieldInsight service booking assistant. Channel: ${channel}. Style: ${style}.
+  // Build slot list — hide or show tech names based on setting
+  const slotList = slots.map((s, i) => {
+    const timeLabel = new Date(s.date).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+    return showTechNames
+      ? `  ${i+1}. ${s.label}`
+      : `  ${i+1}. ${timeLabel} at ${s.startHour}:00–${s.startHour + 2}:00`;
+  }).join('\n');
+
+  // Internal tech routing (always present so Fiona picks the right tech for the BOOKING JSON)
+  const techRouting = `
+INTERNAL TECH ROUTING (do NOT share tech names with the customer — use this only to populate the BOOKING JSON):
+- Jake Morrison — HVAC jobs
+- Sam Peters — Electrical jobs
+- Brad Kim — Plumbing jobs
+- Amy Chen — HVAC & General jobs
+
+Each available slot maps to a specific technician internally. When generating the BOOKING JSON, choose the correct technician for the job type.`;
+
+  const extra = customInstructions?.trim()
+    ? `\nADDITIONAL INSTRUCTIONS:\n${customInstructions.trim()}`
+    : '';
+
+  return `You are ${personaName}, a friendly ${companyName} service booking assistant. Channel: ${channel}. Style: ${style}.
 
 Today: ${today}
 
+Your opening greeting (use on first message): "${greeting}"
+
 BOOKING FLOW:
-1. Warmly greet and ask "Would you like to book a job?"
+1. Use the opening greeting above
 2. Collect: customer name, job type (HVAC/Plumbing/Electrical/General), service address, preferred date/time
-3. Suggest 2–3 available slots from the list below
-4. Confirm all details with customer
-5. When customer confirms, output EXACTLY this on its own line (no surrounding text):
+3. Suggest 2–3 available time slots from the list below — present dates and times only, never mention technician names
+4. Confirm all details with the customer
+5. When customer confirms, output EXACTLY this JSON on its own line (no surrounding text):
    BOOKING:{"tech":"NAME","customer":"NAME","type":"TYPE","address":"ADDR","date":"YYYY-MM-DD","startHour":9,"duration":2,"amount":0,"status":"pending"}
 
-AVAILABLE SLOTS (next 2 weeks, weekdays only):
-${slotList}
+AVAILABLE TIME SLOTS (next 2 weeks):
+${slotList || '  No slots currently available — apologise and suggest calling the office.'}
+${techRouting}
 
-TECHNICIANS:
-- Jake Morrison — HVAC specialist
-- Sam Peters — Electrical specialist
-- Brad Kim — Plumbing specialist
-- Amy Chen — HVAC & General
-
-Match job type to correct technician. Keep responses brief and action-oriented.`;
+Keep responses brief and action-oriented. Never mention technician names to the customer.${extra}`;
 }
 
 // ── API routes ─────────────────────────────────────────────────────
@@ -155,6 +184,19 @@ app.post('/api/settings/techs', (req, res) => {
 
 app.get('/api/settings/booking', (_req, res) => {
   res.json(bookingSettings);
+});
+
+app.get('/api/settings/prompt', (_req, res) => {
+  res.json(promptSettings);
+});
+
+app.post('/api/settings/prompt', (req, res) => {
+  const allowed = ['personaName', 'companyName', 'greeting', 'showTechNames', 'customInstructions'];
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) promptSettings[key] = req.body[key];
+  }
+  console.log('Prompt settings updated:', promptSettings);
+  res.json({ ok: true, promptSettings });
 });
 
 app.post('/api/settings/booking', (req, res) => {

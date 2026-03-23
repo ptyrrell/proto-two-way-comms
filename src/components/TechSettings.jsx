@@ -17,7 +17,15 @@ function fmtHour(h) {
   return `${h - 12}pm`;
 }
 
-const HOUR_OPTIONS = Array.from({ length: 17 }, (_, i) => i + 6); // 6am–10pm
+const HOUR_OPTIONS = Array.from({ length: 17 }, (_, i) => i + 6);
+
+const DEFAULT_PROMPT = {
+  personaName:        'Fiona',
+  companyName:        'FieldInsight',
+  greeting:           "Hi! I'm Fiona from FieldInsight. Would you like to book a service job today?",
+  showTechNames:      false,
+  customInstructions: '',
+};
 
 export default function TechSettings({ onClose }) {
   const { refreshBookingSettings } = useSchedule();
@@ -28,12 +36,14 @@ export default function TechSettings({ onClose }) {
     startHour:   8,
     endHour:     17,
   });
+  const [promptSettings, setPromptSettings] = useState(DEFAULT_PROMPT);
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
   useEffect(() => {
     fetch('/api/settings/techs').then(r => r.json()).then(d => setTechSettings(d));
     fetch('/api/settings/booking').then(r => r.json()).then(d => setBookingSettings(d));
+    fetch('/api/settings/prompt').then(r => r.json()).then(d => setPromptSettings(d));
   }, []);
 
   const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 1800); };
@@ -47,6 +57,20 @@ export default function TechSettings({ onClose }) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tech, availableForBooking: newVal }),
+    });
+    setSaving(false);
+    flash();
+  };
+
+  /* ─── Prompt settings save ─────────────────────────── */
+  const savePrompt = async (patch) => {
+    const next = { ...promptSettings, ...patch };
+    setPromptSettings(next);
+    setSaving(true);
+    await fetch('/api/settings/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(next),
     });
     setSaving(false);
     flash();
@@ -201,6 +225,97 @@ export default function TechSettings({ onClose }) {
                 </span>
               </div>
             </div>
+          </div>
+
+        </div>
+
+        {/* ─── PROMPT / PERSONA SECTION ───────────────────── */}
+        <div className="settings-section-label" style={{ marginTop: '20px' }}>
+          <span>🤖</span> AI Persona &amp; Prompt
+        </div>
+
+        <div className="booking-rules">
+
+          {/* Persona name */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Persona Name</div>
+              <div className="br-desc">The name the AI introduces itself as</div>
+            </div>
+            <div className="br-control">
+              <input
+                className="br-input"
+                value={promptSettings.personaName}
+                onChange={e => setPromptSettings(p => ({ ...p, personaName: e.target.value }))}
+                onBlur={e => savePrompt({ personaName: e.target.value })}
+                placeholder="e.g. Fiona"
+              />
+            </div>
+          </div>
+
+          {/* Company name */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Company Name</div>
+              <div className="br-desc">Used in greetings and sign-offs</div>
+            </div>
+            <div className="br-control">
+              <input
+                className="br-input"
+                value={promptSettings.companyName}
+                onChange={e => setPromptSettings(p => ({ ...p, companyName: e.target.value }))}
+                onBlur={e => savePrompt({ companyName: e.target.value })}
+                placeholder="e.g. FieldInsight"
+              />
+            </div>
+          </div>
+
+          {/* Greeting */}
+          <div className="br-row br-row-col">
+            <div className="br-label">
+              <div className="br-title">Opening Greeting</div>
+              <div className="br-desc">First message sent to the customer on every channel</div>
+            </div>
+            <textarea
+              className="br-textarea"
+              value={promptSettings.greeting}
+              rows={2}
+              onChange={e => setPromptSettings(p => ({ ...p, greeting: e.target.value }))}
+              onBlur={e => savePrompt({ greeting: e.target.value })}
+              placeholder="Hi! I'm Fiona from FieldInsight…"
+            />
+          </div>
+
+          {/* Show tech names toggle */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Show Technician Names</div>
+              <div className="br-desc">When off, Fiona only offers dates &amp; times — never mentions who the tech is</div>
+            </div>
+            <div className="br-control">
+              <button
+                className={`toggle-btn${promptSettings.showTechNames ? ' on' : ' off'}`}
+                onClick={() => savePrompt({ showTechNames: !promptSettings.showTechNames })}
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
+
+          {/* Custom instructions */}
+          <div className="br-row br-row-col">
+            <div className="br-label">
+              <div className="br-title">Custom Instructions</div>
+              <div className="br-desc">Extra rules appended to the system prompt (e.g. "always upsell a service plan")</div>
+            </div>
+            <textarea
+              className="br-textarea"
+              value={promptSettings.customInstructions}
+              rows={3}
+              onChange={e => setPromptSettings(p => ({ ...p, customInstructions: e.target.value }))}
+              onBlur={e => savePrompt({ customInstructions: e.target.value })}
+              placeholder="e.g. Always offer a 12-month maintenance plan at the end of the booking."
+            />
           </div>
 
         </div>

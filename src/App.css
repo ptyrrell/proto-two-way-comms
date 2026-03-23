@@ -955,3 +955,26 @@ body {
 .settings-section-label {
   display: flex; align-items: center; gap: 6px;
 }
+
+/* ── Prompt settings inputs ───────────────────────────────── */
+.br-input {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 6px 10px;
+  font-size: 12px; font-weight: 500; outline: none; width: 160px;
+  transition: border-color 0.15s;
+}
+.br-input:focus { border-color: var(--accent); }
+
+.br-textarea {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 8px 10px;
+  font-size: 12px; font-family: inherit; line-height: 1.5;
+  resize: vertical; outline: none; margin-top: 6px;
+  transition: border-color 0.15s;
+}
+.br-textarea:focus { border-color: var(--accent); }
+
+.br-row-col {
+  flex-direction: column; align-items: stretch;
+}
+.br-row-col .br-control { width: 100%; }
