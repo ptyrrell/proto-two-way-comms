@@ -19,6 +19,16 @@ function fmtHour(h) {
 
 const HOUR_OPTIONS = Array.from({ length: 17 }, (_, i) => i + 6);
 
+const ALL_DATA_FIELDS = [
+  { id: 'date',        icon: '📅', label: 'Preferred Date',   desc: 'Ask if they have a preferred date or date range' },
+  { id: 'time',        icon: '🕐', label: 'Preferred Time',   desc: 'Ask if they prefer morning or afternoon' },
+  { id: 'address',     icon: '📍', label: 'Service Address',  desc: 'Collect full service address (triggers address widget)' },
+  { id: 'name',        icon: '👤', label: 'Customer Name',    desc: 'Ask for the customer\'s full name' },
+  { id: 'business',    icon: '🏢', label: 'Business Name',    desc: 'Ask if booking is for a business and collect its name' },
+  { id: 'description', icon: '📋', label: 'Job Description',  desc: 'Ask customer to describe the issue or work needed' },
+  { id: 'urgency',     icon: '⚡', label: 'Urgency',          desc: 'Ask how urgent — routine, soon, or emergency' },
+];
+
 const ALL_JOB_TYPES = [
   { id: 'HVAC',              icon: '❄️', desc: 'Heating, ventilation & A/C' },
   { id: 'Electrical',        icon: '⚡', desc: 'Electrical work & repairs' },
@@ -35,6 +45,7 @@ const DEFAULT_PROMPT = {
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
+  requiredFields:        ['date', 'time', 'address', 'name', 'business', 'description', 'urgency'],
   customInstructions:    '',
   customFullPrompt:      null,
 };
@@ -104,6 +115,12 @@ export default function TechSettings({ onClose }) {
     const cur = promptSettings.enabledJobTypes || [];
     const next = cur.includes(id) ? cur.filter(t => t !== id) : [...cur, id];
     savePrompt({ enabledJobTypes: next });
+  };
+
+  const toggleDataField = (id) => {
+    const cur = promptSettings.requiredFields || [];
+    const next = cur.includes(id) ? cur.filter(f => f !== id) : [...cur, id];
+    savePrompt({ requiredFields: next });
   };
 
   const enterFullEdit = () => {
@@ -447,6 +464,36 @@ export default function TechSettings({ onClose }) {
         <div className="jt-hint">
           {ALL_JOB_TYPES.filter(jt => (promptSettings.enabledJobTypes||[]).includes(jt.id)).map(jt => (
             <span key={jt.id} className="jt-desc-item">{jt.icon} <strong>{jt.id}</strong> — {jt.desc}</span>
+          ))}
+        </div>
+
+        {/* ─── KEY DATA TO COLLECT ────────────────────────── */}
+        <div className="settings-section-label" style={{ marginTop: '20px' }}>
+          <span>🗃</span> Key Data to Collect
+        </div>
+        <div className="jt-hint" style={{ marginBottom: '8px' }}>
+          Fiona will ask for each enabled field during the conversation.
+        </div>
+        <div className="job-types-grid">
+          {ALL_DATA_FIELDS.map(f => {
+            const on = (promptSettings.requiredFields || []).includes(f.id);
+            return (
+              <button
+                key={f.id}
+                className={`jt-chip${on ? ' on' : ' off'}`}
+                onClick={() => toggleDataField(f.id)}
+                title={f.desc}
+              >
+                <span className="jt-icon">{f.icon}</span>
+                <span className="jt-label">{f.label}</span>
+                <span className={`jt-dot${on ? ' on' : ''}`} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="jt-hint" style={{ marginTop: '6px' }}>
+          {ALL_DATA_FIELDS.filter(f => (promptSettings.requiredFields || []).includes(f.id)).map(f => (
+            <span key={f.id} className="jt-desc-item">{f.icon} <strong>{f.label}</strong> — {f.desc}</span>
           ))}
         </div>
 

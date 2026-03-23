@@ -47,6 +47,7 @@ let promptSettings = {
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
+  requiredFields:        ['date', 'time', 'address', 'name', 'business', 'description', 'urgency'],
   customInstructions:    '',
   customFullPrompt:      null,   // when set, overrides the auto-built prompt; supports tokens: {TODAY} {SLOTS} {PERSONA} {COMPANY}
 };
@@ -131,7 +132,7 @@ function buildSlotList(showTechNames) {
 function buildSystem(channel) {
   const today    = new Date().toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   const slotList = buildSlotList(promptSettings.showTechNames);
-  const { personaName, companyName, greeting, enabledJobTypes, collectContactDetails, customInstructions, customFullPrompt } = promptSettings;
+  const { personaName, companyName, greeting, enabledJobTypes, collectContactDetails, requiredFields, customInstructions, customFullPrompt } = promptSettings;
 
   // ── Custom full prompt override ──
   if (customFullPrompt?.trim()) {
@@ -200,6 +201,21 @@ CONTACT COLLECTION (do this after confirming service details, before finalising)
 3. Once confirmed say: "Perfect — a confirmation email and SMS will be sent, and you'll receive a reminder 1 hour before your appointment."
 When you ask for contact details, include [NEEDS_CONTACT] in your message.` : '';
 
+  // ── Required data fields ──
+  const FIELD_META = {
+    date:        { label: 'Preferred Date',  prompt: 'Ask if they have a preferred date or date range.' },
+    time:        { label: 'Preferred Time',  prompt: 'Ask if they prefer morning or afternoon.' },
+    address:     { label: 'Service Address', prompt: 'Collect full service address (handled via [NEEDS_ADDRESS]).' },
+    name:        { label: 'Customer Name',   prompt: 'Ask for the customer\'s full name early in the conversation.' },
+    business:    { label: 'Business Name',   prompt: 'Ask whether the booking is for a business and collect the business name if so.' },
+    description: { label: 'Job Description', prompt: 'Ask the customer to describe the issue or work needed.' },
+    urgency:     { label: 'Urgency',         prompt: 'Ask how urgent the request is — routine, soon, or emergency.' },
+  };
+  const fields = (requiredFields?.length ? requiredFields : []).filter(f => FIELD_META[f]);
+  const dataSection = fields.length
+    ? `\nDATA TO COLLECT during this conversation:\n${fields.map(f => `- ${FIELD_META[f].label}: ${FIELD_META[f].prompt}`).join('\n')}`
+    : '';
+
   // ── Tech routing (internal) ──
   const techRouting = `
 INTERNAL TECH ROUTING — never share names with customer, use only for the BOOKING/QUOTE JSON:
@@ -219,6 +235,7 @@ Opening greeting (first message only): "${greeting}"
 JOB TYPE FLOWS:
 ${jobTypeSection}
 ${contactSection}
+${dataSection}
 
 AVAILABLE TIME SLOTS (next 2 weeks — times only, no names):
 ${slotList}
