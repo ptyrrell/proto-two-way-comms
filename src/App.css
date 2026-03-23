@@ -913,6 +913,55 @@ body {
   );
 }
 
+/* ── Just-booked confirmation ─────────────────────────────────────── */
+.cs-booking-banner {
+  display: flex; align-items: center; gap: 12px;
+  background: linear-gradient(135deg, rgba(16,217,144,.12), rgba(16,217,144,.06));
+  border: 1px solid rgba(16,217,144,.35);
+  border-radius: 10px; margin: 12px 16px 0; padding: 14px 16px;
+  animation: bannerSlideIn .3s ease;
+}
+@keyframes bannerSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cs-banner-icon {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--green); color: #000;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 800; flex-shrink: 0;
+  box-shadow: 0 0 16px rgba(16,217,144,.5);
+  animation: pulse-green 1.5s ease-in-out 2;
+}
+@keyframes pulse-green {
+  0%,100% { box-shadow: 0 0 10px rgba(16,217,144,.4); }
+  50%      { box-shadow: 0 0 24px rgba(16,217,144,.8); }
+}
+.cs-banner-body { flex: 1; min-width: 0; }
+.cs-banner-title { font-size: 13px; font-weight: 800; color: #10d990; }
+.cs-banner-detail { font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.cs-banner-close {
+  background: transparent; border: none; color: var(--muted);
+  font-size: 14px; cursor: pointer; padding: 4px; flex-shrink: 0;
+}
+.cs-banner-close:hover { color: var(--text); }
+
+.cs-booked {
+  background: linear-gradient(135deg, rgba(16,217,144,.18), rgba(16,217,144,.10));
+  box-shadow: inset 0 0 0 2px rgba(16,217,144,.5);
+  animation: bookedPulse 1.2s ease 3;
+}
+@keyframes bookedPulse {
+  0%,100% { box-shadow: inset 0 0 0 2px rgba(16,217,144,.5); }
+  50%      { box-shadow: inset 0 0 0 2px rgba(16,217,144,.9), 0 0 12px rgba(16,217,144,.3); }
+}
+.cs-booked-label {
+  font-size: 9px; font-weight: 800; color: #10d990;
+  text-transform: uppercase; letter-spacing: .4px;
+}
+.cs-key-booked   { color: #10d990; background: rgba(16,217,144,.12); border: 1px solid rgba(16,217,144,.3) !important; }
+.cs-key-booked::before { background: #10d990; }
+
 .cs-lunch {
   background: rgba(99,102,241,0.07);
   background-image: repeating-linear-gradient(
