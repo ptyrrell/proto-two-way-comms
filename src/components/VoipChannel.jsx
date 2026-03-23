@@ -282,6 +282,20 @@ export default function VoipChannel() {
               ? 'Real voice call — speak your request, AI books a job'
               : 'Browser speech not supported — use Chrome or Edge'}
           </div>
+          <a
+            href="https://ptyrrell.github.io/product-roadmap/voice-spec.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
+              marginTop: '10px', fontSize: '11px', fontWeight: '600',
+              color: 'var(--accent)', textDecoration: 'none',
+              background: 'rgba(99,102,241,.1)', border: '1px solid rgba(99,102,241,.25)',
+              borderRadius: '6px', padding: '5px 12px',
+            }}
+          >
+            📐 Voice IVR Technical Spec →
+          </a>
 
           {/* Mic picker */}
           {voiceSupported && micDevices.length > 0 && (
