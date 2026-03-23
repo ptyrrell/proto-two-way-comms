@@ -27,11 +27,32 @@ function Waveform({ active }) {
   );
 }
 
+/* ── Mic device selector ──────────────────────────────────────── */
+function MicPicker({ devices, selectedId, onChange, compact }) {
+  if (!devices.length) return null;
+  return (
+    <div className={`mic-picker${compact ? ' compact' : ''}`}>
+      {!compact && <span className="mic-picker-label">🎙 Microphone</span>}
+      <select
+        className="mic-picker-select"
+        value={selectedId || ''}
+        onChange={e => onChange(e.target.value || null)}
+        title="Select microphone input"
+      >
+        {!selectedId && <option value="">— select mic —</option>}
+        {devices.map(d => (
+          <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${d.deviceId.slice(0, 6)}`}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 /* ── main component ─────────────────────────────────────────── */
 export default function VoipChannel() {
   const { messages, isLoading, sendMessage, initiate, lastBooking } = useChat('voip');
 
-  const [callState, setCallState] = useState('idle');   // idle | ringing | connected | ended
+  const [callState, setCallState] = useState('idle');
   const [callStart, setCallStart] = useState(null);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -39,10 +60,69 @@ export default function VoipChannel() {
   const [micError, setMicError] = useState(null);
   const [voiceSupported] = useState(() => !!(window.SpeechRecognition || window.webkitSpeechRecognition));
 
-  const recogRef   = useRef(null);
+  // Mic device selection
+  const [micDevices,    setMicDevices]    = useState([]);
+  const [selectedMicId, setSelectedMicId] = useState(null);
+  const claimedStreamRef = useRef(null); // getUserMedia stream kept alive to "claim" the device
+
+  const recogRef    = useRef(null);
   const speakingRef = useRef(false);
-  const callAlive  = useRef(false);
-  const bottomRef  = useRef(null);
+  const callAlive   = useRef(false);
+  const bottomRef   = useRef(null);
+
+  /* ── Enumerate audio input devices ───────────────────────── */
+  useEffect(() => {
+    async function loadDevices() {
+      try {
+        // Request permission first so labels are populated
+        await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => {
+          s.getTracks().forEach(t => t.stop()); // just for permission, stop immediately
+        }).catch(() => {});
+
+        const all = await navigator.mediaDevices.enumerateDevices();
+        const mics = all.filter(d => d.kind === 'audioinput');
+        setMicDevices(mics);
+
+        // Default to the first non-"default" device (avoids the OS "default" alias)
+        const pref = mics.find(d => d.deviceId !== 'default' && d.deviceId !== 'communications')
+          || mics[0];
+        if (pref) setSelectedMicId(pref.deviceId);
+      } catch (_) {}
+    }
+    loadDevices();
+
+    navigator.mediaDevices.addEventListener?.('devicechange', loadDevices);
+    return () => navigator.mediaDevices.removeEventListener?.('devicechange', loadDevices);
+  }, []);
+
+  /* ── Claim selected device via getUserMedia ─────────────────
+     Keeping an active stream from the chosen device causes
+     Chrome's SpeechRecognition to prefer that same device.    */
+  const claimDevice = useCallback(async (deviceId) => {
+    // Release any previously claimed stream
+    if (claimedStreamRef.current) {
+      claimedStreamRef.current.getTracks().forEach(t => t.stop());
+      claimedStreamRef.current = null;
+    }
+    if (!deviceId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true },
+      });
+      // Mute — we don't want to play it back, just hold the device open
+      stream.getAudioTracks().forEach(t => { t.enabled = true; });
+      claimedStreamRef.current = stream;
+    } catch (e) {
+      console.warn('Could not claim mic device:', e.message);
+    }
+  }, []);
+
+  const handleMicChange = useCallback(async (deviceId) => {
+    setSelectedMicId(deviceId);
+    if (callState === 'connected') {
+      await claimDevice(deviceId);
+    }
+  }, [callState, claimDevice]);
 
   /* ── TTS ─────────────────────────────────────────────────── */
   const speak = useCallback((text, onEnd) => {
@@ -71,12 +151,7 @@ export default function VoipChannel() {
       window.speechSynthesis.addEventListener('voiceschanged', loadVoice, { once: true });
     }
 
-    const finish = () => {
-      speakingRef.current = false;
-      setIsSpeaking(false);
-      onEnd?.();
-    };
-
+    const finish = () => { speakingRef.current = false; setIsSpeaking(false); onEnd?.(); };
     utter.onend   = finish;
     utter.onerror = finish;
     window.speechSynthesis.speak(utter);
@@ -94,8 +169,8 @@ export default function VoipChannel() {
     }
 
     const r = new SR();
-    r.lang = 'en-AU';
-    r.continuous = false;
+    r.lang           = 'en-AU';
+    r.continuous     = false;
     r.interimResults = true;
     recogRef.current = r;
 
@@ -147,6 +222,9 @@ export default function VoipChannel() {
     callAlive.current = false;
     window.speechSynthesis.cancel();
     try { recogRef.current?.abort(); } catch (_) {}
+    if (claimedStreamRef.current) {
+      claimedStreamRef.current.getTracks().forEach(t => t.stop());
+    }
   }, []);
 
   /* ── Call controls ────────────────────────────────────────── */
@@ -154,17 +232,25 @@ export default function VoipChannel() {
     if (!voiceSupported) return;
     setCallState('ringing');
     setMicError(null);
+
+    // Claim the preferred device before SpeechRecognition starts
+    if (selectedMicId) await claimDevice(selectedMicId);
+
     await new Promise(r => setTimeout(r, 1600));
     callAlive.current = true;
     setCallState('connected');
     setCallStart(Date.now());
-    initiate(); // triggers AI greeting → useEffect above speaks it
+    initiate();
   };
 
   const endCall = () => {
     callAlive.current = false;
     window.speechSynthesis.cancel();
     try { recogRef.current?.abort(); } catch (_) {}
+    if (claimedStreamRef.current) {
+      claimedStreamRef.current.getTracks().forEach(t => t.stop());
+      claimedStreamRef.current = null;
+    }
     setCallState('ended');
     setIsListening(false);
     setIsSpeaking(false);
@@ -196,6 +282,23 @@ export default function VoipChannel() {
               ? 'Real voice call — speak your request, AI books a job'
               : 'Browser speech not supported — use Chrome or Edge'}
           </div>
+
+          {/* Mic picker */}
+          {voiceSupported && micDevices.length > 0 && (
+            <div className="voip-mic-setup">
+              <MicPicker
+                devices={micDevices}
+                selectedId={selectedMicId}
+                onChange={handleMicChange}
+              />
+              {selectedMicId && (
+                <div className="mic-setup-note">
+                  ✓ This device will be claimed when the call starts
+                </div>
+              )}
+            </div>
+          )}
+
           {micError && <div className="voip-error">{micError}</div>}
           <button
             className={`voip-call-btn${!voiceSupported ? ' disabled' : ''}`}
@@ -205,9 +308,7 @@ export default function VoipChannel() {
             📲 Start Voice Call
           </button>
           {!voiceSupported && (
-            <p className="voip-browser-note">
-              Web Speech API required — use Chrome or Edge
-            </p>
+            <p className="voip-browser-note">Web Speech API required — use Chrome or Edge</p>
           )}
         </div>
       </div>
@@ -238,9 +339,20 @@ export default function VoipChannel() {
               : '⬛ Call ended'}
           </div>
         </div>
-        {callState === 'connected' && (
-          <button className="voip-hangup-btn" onClick={endCall}>⬛ End Call</button>
-        )}
+        <div className="voip-call-bar-right">
+          {/* Compact mic picker during call */}
+          {callState === 'connected' && micDevices.length > 1 && (
+            <MicPicker
+              devices={micDevices}
+              selectedId={selectedMicId}
+              onChange={handleMicChange}
+              compact
+            />
+          )}
+          {callState === 'connected' && (
+            <button className="voip-hangup-btn" onClick={endCall}>⬛ End Call</button>
+          )}
+        </div>
       </div>
 
       {/* ── Voice status bar ── */}
@@ -281,7 +393,6 @@ export default function VoipChannel() {
           </div>
         )}
 
-        {/* Interim text preview */}
         {interim && (
           <div className="transcript-line user interim">
             <div className="tl-header"><span className="tl-speaker">You (speaking…)</span></div>
