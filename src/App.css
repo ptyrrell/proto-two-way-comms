@@ -786,6 +786,8 @@ body {
 .cs-key-buffer::before { background: #fb923c; }
 .cs-key-busy    { color: var(--muted); background: var(--surface2); }
 .cs-key-busy::before { background: var(--border2); }
+.cs-key-lunch   { color: #818cf8; background: rgba(99,102,241,0.1); }
+.cs-key-lunch::before { background: #818cf8; }
 
 .cs-scroll { flex: 1; overflow: auto; }
 
@@ -835,6 +837,17 @@ body {
   background-image: repeating-linear-gradient(
     -45deg, transparent, transparent 3px, rgba(255,255,255,0.015) 3px, rgba(255,255,255,0.015) 6px
   );
+}
+
+.cs-lunch {
+  background: rgba(99,102,241,0.07);
+  background-image: repeating-linear-gradient(
+    -45deg, transparent, transparent 4px, rgba(99,102,241,0.05) 4px, rgba(99,102,241,0.05) 8px
+  );
+  cursor: not-allowed;
+}
+.cs-lunch-label {
+  font-size: 9px; font-weight: 700; color: rgba(129,140,248,0.7); letter-spacing: .3px;
 }
 
 .cs-buffer {

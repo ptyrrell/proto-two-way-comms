@@ -21,7 +21,8 @@ function fmtDay(iso) {
 export default function ClientSchedule() {
   const { jobs, techs, techSettings, bookingSettings, loading } = useSchedule();
 
-  const { bufferHours = 4, workingDays = [1,2,3,4,5], startHour = 8, endHour = 17 } = bookingSettings || {};
+  const { bufferHours = 4, workingDays = [1,2,3,4,5], startHour = 8, endHour = 17,
+          lunchEnabled = true, lunchStart = 12, lunchEnd = 13 } = bookingSettings || {};
   const activeTechs = techs.filter(t => techSettings?.[t]?.availableForBooking !== false);
 
   // Build 14-day window of working days only
@@ -49,6 +50,7 @@ export default function ClientSchedule() {
     const now = Date.now();
 
     if (slotTime.getTime() <= now) return 'past';
+    if (lunchEnabled && hour >= lunchStart && hour < lunchEnd) return 'lunch';
     if (slotTime.getTime() - now < bufferHours * 3600 * 1000) return 'buffer';
 
     const freeTechs = activeTechs.filter(tech =>
@@ -75,6 +77,7 @@ export default function ClientSchedule() {
 
   const STATUS_CFG = {
     past:    { cls: 'cs-past',    label: null },
+    lunch:   { cls: 'cs-lunch',   label: 'Lunch' },
     buffer:  { cls: 'cs-buffer',  label: 'Soon' },
     busy:    { cls: 'cs-busy',    label: 'Full' },
     partial: { cls: 'cs-partial', label: 'Partial' },
@@ -88,6 +91,7 @@ export default function ClientSchedule() {
         <span className="cs-key cs-key-partial">Partial</span>
         <span className="cs-key cs-key-buffer">Too soon ({bufferHours}h buffer)</span>
         <span className="cs-key cs-key-busy">Fully booked</span>
+        {lunchEnabled && <span className="cs-key cs-key-lunch">Lunch break</span>}
       </div>
 
       <div className="cs-scroll">
@@ -125,6 +129,7 @@ export default function ClientSchedule() {
                     style={{ width: CELL_W, height: CELL_H }}
                     title={cfg.label ? `${fmtTime(hour)} – ${cfg.label}` : undefined}
                   >
+                    {status === 'lunch' && <span className="cs-lunch-label">🍽 Lunch</span>}
                     {status === 'open' && <span className="cs-open-dot" />}
                     {status === 'partial' && (() => {
                       const free = activeTechs.filter(tech =>

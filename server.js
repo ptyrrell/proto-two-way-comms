@@ -34,6 +34,9 @@ let bookingSettings = {
   workingDays:  [1, 2, 3, 4, 5], // Mon–Fri (0=Sun … 6=Sat)
   startHour:    8,              // first bookable hour (8 AM)
   endHour:      17,             // last bookable start hour (5 PM, so jobs end by 6 PM)
+  lunchEnabled: true,           // block lunch period from self-booking
+  lunchStart:   12,             // lunch break start (noon)
+  lunchEnd:     13,             // lunch break end (1 PM)
 };
 
 // AI persona & prompt settings
@@ -93,8 +96,11 @@ function getAvailableSlots() {
       jobs.filter(j => j.tech === tech && j.date === date)
           .forEach(j => { for (let h = j.startHour; h < j.startHour + j.duration; h++) busy.add(h); });
 
-      const { startHour, endHour } = bookingSettings;
+      const { startHour, endHour, lunchEnabled, lunchStart, lunchEnd } = bookingSettings;
       for (let hour = startHour; hour <= endHour - 2; hour++) {
+        // Skip lunch hours
+        if (lunchEnabled && hour >= lunchStart && hour < lunchEnd) continue;
+
         // Check buffer: slot must be at least bufferHours from now
         const slotTime = new Date(date);
         slotTime.setHours(hour, 0, 0, 0);

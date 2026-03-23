@@ -43,10 +43,13 @@ export default function TechSettings({ onClose }) {
   const { refreshBookingSettings } = useSchedule();
   const [techSettings,    setTechSettings]    = useState({});
   const [bookingSettings, setBookingSettings] = useState({
-    bufferHours: 4,
-    workingDays: [1,2,3,4,5],
-    startHour:   8,
-    endHour:     17,
+    bufferHours:  4,
+    workingDays:  [1,2,3,4,5],
+    startHour:    8,
+    endHour:      17,
+    lunchEnabled: true,
+    lunchStart:   12,
+    lunchEnd:     13,
   });
   const [promptSettings,  setPromptSettings]  = useState(DEFAULT_PROMPT);
   const [promptPreview,   setPromptPreview]   = useState('');
@@ -267,6 +270,46 @@ export default function TechSettings({ onClose }) {
                 <span className="br-hours-preview">
                   ({bookingSettings.endHour - bookingSettings.startHour}h window)
                 </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lunch break */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Lunch Break</div>
+              <div className="br-desc">Block this period from self-booking on working days</div>
+            </div>
+            <div className="br-control">
+              <div className="br-hours-row" style={{ alignItems: 'center', gap: '8px' }}>
+                <button
+                  className={`toggle-btn${bookingSettings.lunchEnabled ? ' on' : ' off'}`}
+                  onClick={() => saveBooking({ lunchEnabled: !bookingSettings.lunchEnabled })}
+                  style={{ flexShrink: 0 }}
+                >
+                  <span className="toggle-thumb" />
+                </button>
+                <select
+                  className="br-select"
+                  disabled={!bookingSettings.lunchEnabled}
+                  value={bookingSettings.lunchStart ?? 12}
+                  onChange={e => saveBooking({ lunchStart: Number(e.target.value) })}
+                >
+                  {HOUR_OPTIONS.filter(h => h < (bookingSettings.lunchEnd ?? 13)).map(h => (
+                    <option key={h} value={h}>{fmtHour(h)}</option>
+                  ))}
+                </select>
+                <span className="br-to">to</span>
+                <select
+                  className="br-select"
+                  disabled={!bookingSettings.lunchEnabled}
+                  value={bookingSettings.lunchEnd ?? 13}
+                  onChange={e => saveBooking({ lunchEnd: Number(e.target.value) })}
+                >
+                  {HOUR_OPTIONS.filter(h => h > (bookingSettings.lunchStart ?? 12)).map(h => (
+                    <option key={h} value={h}>{fmtHour(h)}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
