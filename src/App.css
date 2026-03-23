@@ -956,6 +956,197 @@ body {
   display: flex; align-items: center; gap: 6px;
 }
 
+/* ── Web channel sub-tabs ────────────────────────────────── */
+.web-channel-body {
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.web-subtabs {
+  flex-shrink: 0; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.web-subtab-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px 8px;
+}
+.web-subtab-meta { flex: 1; min-width: 0; }
+.web-subtab-pills {
+  display: flex; gap: 4px; padding: 0 14px 10px;
+}
+.web-subtab-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 20px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--muted); transition: all 0.15s; position: relative;
+}
+.web-subtab-pill.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+  box-shadow: 0 1px 8px rgba(99,102,241,0.4);
+}
+.web-subtab-pill:not(.active):hover { background: var(--border); color: var(--text); }
+.web-subtab-pill.disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+.wst-icon { font-size: 13px; }
+.wst-dot {
+  position: absolute; top: -3px; right: -3px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #22c55e; border: 2px solid var(--surface);
+  box-shadow: 0 0 4px #22c55e;
+}
+
+/* View panes — only active one is shown, all stay mounted */
+.web-view-pane {
+  display: none; flex: 1; flex-direction: column; overflow: hidden; min-height: 0;
+}
+.web-view-pane.active { display: flex; }
+.web-view-scroll { flex: 1; overflow-y: auto; }
+
+/* Make the banner clickable */
+.booking-confirmed-banner.clickable { cursor: pointer; }
+.booking-confirmed-banner.clickable:hover { filter: brightness(1.15); }
+
+/* ── Client Booking View ─────────────────────────────────── */
+.cbv-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; gap: 10px; text-align: center;
+  color: var(--muted);
+}
+.cbv-empty-icon { font-size: 36px; opacity: 0.4; }
+.cbv-empty-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.cbv-empty-sub { font-size: 12px; max-width: 240px; line-height: 1.5; }
+
+.cbv-wrap { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+.cbv-hero {
+  border-radius: 14px; padding: 24px 20px; text-align: center;
+  background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05));
+  border: 1px solid rgba(99,102,241,0.25);
+}
+.cbv-hero-quote {
+  background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.04));
+  border-color: rgba(245,158,11,0.25);
+}
+.cbv-hero-icon { font-size: 36px; margin-bottom: 8px; }
+.cbv-hero-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.cbv-hero-sub   { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+.cbv-card {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.cbv-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+}
+.cbv-row:last-child { border-bottom: none; }
+.cbv-row-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.cbv-row-body { flex: 1; min-width: 0; }
+.cbv-row-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+.cbv-row-value { font-size: 13px; font-weight: 600; color: var(--text); }
+.cbv-row-note  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.cbv-map-link  { font-size: 11px; color: var(--accent); text-decoration: none; margin-top: 2px; display: inline-block; }
+.cbv-map-link:hover { text-decoration: underline; }
+
+.cbv-notice {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2);
+  border-radius: 10px; padding: 10px 14px;
+  font-size: 11px; color: #22c55e; line-height: 1.5;
+}
+.cbv-notice-quote { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); color: #f59e0b; }
+.cbv-notice-icon { font-size: 16px; flex-shrink: 0; }
+.cbv-brand { text-align: center; font-size: 10px; color: var(--muted); padding-bottom: 4px; }
+
+/* ── Booking Details View ────────────────────────────────── */
+.bkd-wrap { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+.bkd-header {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px;
+}
+.bkd-header-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.bkd-job-icon { font-size: 28px; flex-shrink: 0; }
+.bkd-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.bkd-id    { font-size: 10px; color: var(--muted); font-family: monospace; }
+.bkd-status {
+  font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: 0.4px; flex-shrink: 0;
+}
+.status-pending   { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+.status-confirmed { background: rgba(34,197,94,0.15);  color: #22c55e; border: 1px solid rgba(34,197,94,0.3);  }
+.status-quote     { background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); }
+
+.bkd-fields {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden;
+}
+.bkd-field {
+  padding: 10px 14px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
+}
+.bkd-field:nth-child(even) { border-right: none; }
+.bkd-field-full { grid-column: 1 / -1; border-right: none; }
+.bkd-fl { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 3px; }
+.bkd-fv { font-size: 12px; font-weight: 600; color: var(--text); }
+.bkd-addr { font-size: 11px; line-height: 1.3; }
+
+/* SMS send panel */
+.bkd-sms-panel {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.bkd-sms-title {
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+  font-size: 12px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.sms-sent-badge {
+  font-size: 10px; font-weight: 600; padding: 2px 7px;
+  background: rgba(34,197,94,0.15); color: #22c55e;
+  border: 1px solid rgba(34,197,94,0.3); border-radius: 10px;
+}
+.sms-sent-badge.simulated { background: rgba(245,158,11,0.12); color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+.sms-error-badge { font-size: 10px; color: #f87171; }
+
+.bkd-sms-to {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.bkd-sms-to-label { font-size: 11px; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+.bkd-sms-to-input {
+  flex: 1; background: var(--surface3); border: 1px solid var(--border);
+  color: var(--text); border-radius: 7px; padding: 5px 8px; font-size: 12px; outline: none;
+}
+.bkd-sms-to-input:focus { border-color: var(--accent); }
+
+.bkd-sms-msg-wrap { padding: 10px 14px; }
+.bkd-sms-bubble {
+  background: #1d4ed833; border: 1px solid rgba(37,99,235,0.25);
+  border-radius: 10px; padding: 10px 12px;
+}
+.bkd-sms-text { font-size: 12px; color: var(--text); line-height: 1.5; margin: 0; }
+.bkd-sms-edit { width: 100%; background: transparent; border: none; outline: none; color: var(--text); font-size: 12px; line-height: 1.5; resize: none; font-family: inherit; }
+.bkd-sms-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.bkd-sms-chars { font-size: 10px; color: var(--muted); }
+.bkd-sms-edit-btn {
+  font-size: 10px; background: none; border: none; color: var(--accent);
+  cursor: pointer; padding: 0; font-weight: 600;
+}
+.bkd-sms-edit-btn:hover { text-decoration: underline; }
+
+.bkd-send-btn {
+  display: block; width: calc(100% - 28px); margin: 0 14px 10px;
+  padding: 10px; border-radius: 9px; border: 1px solid var(--border);
+  background: var(--surface3); color: var(--muted);
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; text-align: center;
+}
+.bkd-send-btn.ready {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+  box-shadow: 0 2px 12px rgba(99,102,241,0.4);
+}
+.bkd-send-btn.ready:hover { filter: brightness(1.1); }
+.bkd-send-btn.done { background: rgba(34,197,94,0.2); border-color: rgba(34,197,94,0.3); color: #22c55e; cursor: default; }
+.bkd-sms-note { font-size: 10px; color: var(--muted); padding: 0 14px 12px; font-style: italic; }
+
 /* ── Address & Contact input widgets ─────────────────────── */
 .address-input-widget,
 .contact-input-widget {

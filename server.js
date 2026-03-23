@@ -374,6 +374,44 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// ── SMS send (Twilio if configured, simulated otherwise) ────────────
+app.post('/api/send-sms', async (req, res) => {
+  const { to, message } = req.body;
+  if (!to || !message) return res.status(400).json({ ok: false, error: 'to and message are required' });
+
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken  = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_FROM_NUMBER;
+
+  if (accountSid && authToken && fromNumber) {
+    try {
+      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+      const body = new URLSearchParams({ To: to, From: fromNumber, Body: message });
+      const resp = await fetch(twilioUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+        },
+        body,
+      });
+      const data = await resp.json();
+      if (data.sid) {
+        console.log(`SMS sent via Twilio to ${to} — SID: ${data.sid}`);
+        return res.json({ ok: true, simulated: false, sid: data.sid });
+      }
+      return res.status(400).json({ ok: false, error: data.message || 'Twilio error' });
+    } catch (e) {
+      console.error('Twilio error:', e.message);
+      return res.status(500).json({ ok: false, error: e.message });
+    }
+  }
+
+  // Simulated — log and return success
+  console.log(`[SMS SIMULATION]\nTo: ${to}\n---\n${message}\n---`);
+  return res.json({ ok: true, simulated: true, to, message });
+});
+
 // Serve React build in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
