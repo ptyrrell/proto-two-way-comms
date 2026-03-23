@@ -710,3 +710,216 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ── View toggle (Internal / Client) ──────────────────── */
+.view-toggle {
+  display: flex; align-items: center;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 3px; gap: 2px;
+}
+.vt-btn {
+  padding: 4px 12px; border: none; border-radius: 6px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  background: transparent; color: var(--muted);
+  transition: all 0.18s; letter-spacing: 0.2px;
+}
+.vt-btn.active {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 1px 6px rgba(99,102,241,0.4);
+}
+.vt-btn:not(.active):hover { color: var(--text); background: var(--border); }
+
+/* ── Client Schedule ───────────────────────────────────── */
+.client-schedule-wrap {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; min-height: 0;
+}
+
+.cs-legend {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.cs-key {
+  font-size: 10px; font-weight: 600; padding: 2px 8px;
+  border-radius: 4px; display: flex; align-items: center; gap: 5px;
+  letter-spacing: 0.3px;
+}
+.cs-key::before { content: ''; display: block; width: 8px; height: 8px; border-radius: 2px; }
+.cs-key-open    { color: #34d399; background: rgba(52,211,153,0.1); }
+.cs-key-open::before { background: #34d399; }
+.cs-key-partial { color: #f59e0b; background: rgba(245,158,11,0.1); }
+.cs-key-partial::before { background: #f59e0b; }
+.cs-key-buffer  { color: #fb923c; background: rgba(251,146,60,0.1); }
+.cs-key-buffer::before { background: #fb923c; }
+.cs-key-busy    { color: var(--muted); background: var(--surface2); }
+.cs-key-busy::before { background: var(--border2); }
+
+.cs-scroll { flex: 1; overflow: auto; }
+
+.cs-grid { position: relative; }
+
+/* Header row */
+.cs-header-row {
+  display: flex; position: sticky; top: 0; z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.cs-time-corner { flex-shrink: 0; }
+.cs-date-hdr {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 6px 4px; border-left: 1px solid var(--border);
+  font-size: 10px; color: var(--muted);
+}
+.cs-date-hdr.cs-today-hdr { background: rgba(99,102,241,0.06); }
+.cs-dh-wd  { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+.cs-dh-num { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.cs-dh-num.cs-today-num {
+  background: var(--accent); color: #fff;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.cs-dh-mo  { font-size: 9px; color: var(--muted); }
+
+/* Hour rows */
+.cs-hour-row { display: flex; border-bottom: 1px solid var(--border); }
+.cs-time-lbl {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end;
+  padding-right: 8px; font-size: 10px; color: var(--muted);
+  background: var(--surface); border-right: 1px solid var(--border);
+  position: sticky; left: 0; z-index: 3;
+}
+
+/* Cells */
+.cs-cell {
+  flex-shrink: 0; border-left: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; position: relative;
+}
+.cs-cell.cs-today-col { background: rgba(99,102,241,0.04); }
+
+.cs-past {
+  background: rgba(0,0,0,0.25);
+  background-image: repeating-linear-gradient(
+    -45deg, transparent, transparent 3px, rgba(255,255,255,0.015) 3px, rgba(255,255,255,0.015) 6px
+  );
+}
+
+.cs-buffer {
+  background: rgba(251,146,60,0.08);
+  background-image: repeating-linear-gradient(
+    -45deg, transparent, transparent 4px, rgba(251,146,60,0.06) 4px, rgba(251,146,60,0.06) 8px
+  );
+  cursor: not-allowed;
+}
+
+.cs-busy {
+  background: rgba(0,0,0,0.18);
+  background-image: repeating-linear-gradient(
+    -45deg, transparent, transparent 4px, rgba(255,255,255,0.02) 4px, rgba(255,255,255,0.02) 8px
+  );
+  cursor: not-allowed;
+}
+
+.cs-open {
+  background: rgba(52,211,153,0.06);
+  cursor: pointer;
+}
+.cs-open:hover {
+  background: rgba(52,211,153,0.18);
+  box-shadow: inset 0 0 0 1px rgba(52,211,153,0.4);
+}
+
+.cs-partial {
+  background: rgba(245,158,11,0.07);
+  cursor: pointer;
+}
+.cs-partial:hover {
+  background: rgba(245,158,11,0.16);
+  box-shadow: inset 0 0 0 1px rgba(245,158,11,0.35);
+}
+
+.cs-open-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #34d399; opacity: 0.7;
+}
+.cs-partial-count {
+  font-size: 9px; font-weight: 700; color: #f59e0b; opacity: 0.9;
+}
+
+.cs-footer {
+  padding: 8px 16px; border-top: 1px solid var(--border);
+  font-size: 10px; color: var(--muted); flex-shrink: 0;
+}
+
+/* ── Settings panel – wider variant ──────────────────────── */
+.settings-panel-wide { max-width: 480px; width: 90vw; }
+
+/* ── Booking Rules section ────────────────────────────────── */
+.booking-rules {
+  display: flex; flex-direction: column; gap: 0;
+  padding: 0 12px 4px;
+}
+
+.br-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 6px; border-bottom: 1px solid var(--border);
+}
+.br-row:last-child { border-bottom: none; }
+
+.br-label { flex: 1; min-width: 0; }
+.br-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.br-desc  { font-size: 10px; color: var(--muted); line-height: 1.3; }
+
+.br-control { flex-shrink: 0; display: flex; align-items: center; }
+
+/* Stepper */
+.br-stepper {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 8px;
+}
+.br-step-btn {
+  width: 24px; height: 24px; border: none; border-radius: 6px;
+  background: var(--surface3); color: var(--text);
+  font-size: 16px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+  transition: background 0.15s;
+}
+.br-step-btn:hover { background: var(--accent); color: #fff; }
+.br-value {
+  font-size: 14px; font-weight: 700; color: var(--text);
+  min-width: 30px; text-align: center;
+}
+
+/* Day grid */
+.br-day-grid { display: flex; gap: 4px; }
+.br-day-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface2);
+  color: var(--muted); font-size: 10px; font-weight: 700;
+  cursor: pointer; transition: all 0.15s; text-align: center;
+  display: flex; align-items: center; justify-content: center;
+}
+.br-day-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 1px 6px rgba(99,102,241,0.35); }
+.br-day-btn:not(.active):hover { background: var(--border); color: var(--text); }
+
+/* Hours row */
+.br-hours-row { display: flex; align-items: center; gap: 8px; }
+.br-select {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 6px; padding: 5px 8px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  outline: none; appearance: none; -webkit-appearance: none;
+  padding-right: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 6px center;
+}
+.br-select:focus { border-color: var(--accent); }
+.br-to { font-size: 11px; color: var(--muted); }
+.br-hours-preview { font-size: 10px; color: var(--muted); white-space: nowrap; }
+
+/* Settings section label update */
+.settings-section-label {
+  display: flex; align-items: center; gap: 6px;
+}

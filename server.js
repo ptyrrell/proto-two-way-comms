@@ -28,6 +28,14 @@ const TECHS = ['Jake Morrison', 'Sam Peters', 'Brad Kim', 'Amy Chen'];
 // Technician self-booking availability (all on by default)
 let techSettings = Object.fromEntries(TECHS.map(t => [t, { availableForBooking: true }]));
 
+// Booking rules
+let bookingSettings = {
+  bufferHours:  4,              // minimum hours in advance before a slot is bookable
+  workingDays:  [1, 2, 3, 4, 5], // Mon–Fri (0=Sun … 6=Sat)
+  startHour:    8,              // first bookable hour (8 AM)
+  endHour:      17,             // last bookable start hour (5 PM, so jobs end by 6 PM)
+};
+
 const TYPE_META = {
   HVAC:       { color: '#1e4a6e', border: '#2563eb', text: '#93c5fd' },
   Electrical: { color: '#3b1f6e', border: '#7c3aed', text: '#c4b5fd' },
@@ -60,18 +68,26 @@ let nextId = 20;
 
 function getAvailableSlots() {
   const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
+  const bufferMs    = bookingSettings.bufferHours * 3600 * 1000;
   const slots = [];
+
   for (let day = 1; day <= 14; day++) {
     const date = dateStr(day);
     const d = new Date(date);
-    if (d.getDay() === 0 || d.getDay() === 6) continue;
+    if (!bookingSettings.workingDays.includes(d.getDay())) continue;
 
     for (const tech of activeTechs) {
       const busy = new Set();
       jobs.filter(j => j.tech === tech && j.date === date)
           .forEach(j => { for (let h = j.startHour; h < j.startHour + j.duration; h++) busy.add(h); });
 
-      for (let hour = 8; hour <= 15; hour++) {
+      const { startHour, endHour } = bookingSettings;
+      for (let hour = startHour; hour <= endHour - 2; hour++) {
+        // Check buffer: slot must be at least bufferHours from now
+        const slotTime = new Date(date);
+        slotTime.setHours(hour, 0, 0, 0);
+        if (slotTime.getTime() - Date.now() < bufferMs) continue;
+
         if (!busy.has(hour) && !busy.has(hour + 1)) {
           const label = new Date(date).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
           slots.push({ tech, date, startHour: hour, label: `${tech} — ${label} at ${hour}:00–${hour+2}:00` });
@@ -121,7 +137,7 @@ Match job type to correct technician. Keep responses brief and action-oriented.`
 
 // ── API routes ─────────────────────────────────────────────────────
 app.get('/api/schedule', (_req, res) => {
-  res.json({ jobs, techs: TECHS, techSettings });
+  res.json({ jobs, techs: TECHS, techSettings, bookingSettings });
 });
 
 app.get('/api/settings/techs', (_req, res) => {
@@ -135,6 +151,20 @@ app.post('/api/settings/techs', (req, res) => {
     console.log(`Tech "${tech}" self-booking: ${availableForBooking}`);
   }
   res.json({ ok: true, techSettings });
+});
+
+app.get('/api/settings/booking', (_req, res) => {
+  res.json(bookingSettings);
+});
+
+app.post('/api/settings/booking', (req, res) => {
+  const { bufferHours, workingDays, startHour, endHour } = req.body;
+  if (bufferHours  !== undefined) bookingSettings.bufferHours  = Number(bufferHours);
+  if (workingDays  !== undefined) bookingSettings.workingDays  = workingDays;
+  if (startHour    !== undefined) bookingSettings.startHour    = Number(startHour);
+  if (endHour      !== undefined) bookingSettings.endHour      = Number(endHour);
+  console.log('Booking settings updated:', bookingSettings);
+  res.json({ ok: true, bookingSettings });
 });
 
 app.post('/api/chat', async (req, res) => {
