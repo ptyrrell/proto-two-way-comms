@@ -25,6 +25,9 @@ try {
 // ── In-memory schedule ─────────────────────────────────────────────
 const TECHS = ['Jake Morrison', 'Sam Peters', 'Brad Kim', 'Amy Chen'];
 
+// Technician self-booking availability (all on by default)
+let techSettings = Object.fromEntries(TECHS.map(t => [t, { availableForBooking: true }]));
+
 const TYPE_META = {
   HVAC:       { color: '#1e4a6e', border: '#2563eb', text: '#93c5fd' },
   Electrical: { color: '#3b1f6e', border: '#7c3aed', text: '#c4b5fd' },
@@ -56,13 +59,14 @@ let jobs = [
 let nextId = 20;
 
 function getAvailableSlots() {
+  const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
   const slots = [];
   for (let day = 1; day <= 14; day++) {
     const date = dateStr(day);
     const d = new Date(date);
     if (d.getDay() === 0 || d.getDay() === 6) continue;
 
-    for (const tech of TECHS) {
+    for (const tech of activeTechs) {
       const busy = new Set();
       jobs.filter(j => j.tech === tech && j.date === date)
           .forEach(j => { for (let h = j.startHour; h < j.startHour + j.duration; h++) busy.add(h); });
@@ -117,7 +121,20 @@ Match job type to correct technician. Keep responses brief and action-oriented.`
 
 // ── API routes ─────────────────────────────────────────────────────
 app.get('/api/schedule', (_req, res) => {
-  res.json({ jobs, techs: TECHS });
+  res.json({ jobs, techs: TECHS, techSettings });
+});
+
+app.get('/api/settings/techs', (_req, res) => {
+  res.json(techSettings);
+});
+
+app.post('/api/settings/techs', (req, res) => {
+  const { tech, availableForBooking } = req.body;
+  if (techSettings[tech] !== undefined) {
+    techSettings[tech] = { ...techSettings[tech], availableForBooking };
+    console.log(`Tech "${tech}" self-booking: ${availableForBooking}`);
+  }
+  res.json({ ok: true, techSettings });
 });
 
 app.post('/api/chat', async (req, res) => {

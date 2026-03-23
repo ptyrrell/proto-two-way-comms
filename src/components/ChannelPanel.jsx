@@ -3,6 +3,7 @@ import WebChat from './WebChat';
 import SmsChannel from './SmsChannel';
 import EmailChannel from './EmailChannel';
 import VoipChannel from './VoipChannel';
+import TechSettings from './TechSettings';
 
 const TABS = [
   { id: 'web',   icon: '💬', label: 'Web' },
@@ -13,15 +14,25 @@ const TABS = [
 
 export default function ChannelPanel() {
   const [active, setActive] = useState('web');
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <div className="channel-panel">
       <div className="panel-header">
         <div className="panel-title">Customer Channels</div>
-        <div className="panel-ai-badge">
-          <span className="ai-pill claude">Claude</span>
-          <span className="ai-swap">⇄</span>
-          <span className="ai-pill grok">Grok</span>
+        <div className="panel-header-right">
+          <div className="panel-ai-badge">
+            <span className="ai-pill claude">Claude</span>
+            <span className="ai-swap">⇄</span>
+            <span className="ai-pill grok">Grok</span>
+          </div>
+          <button
+            className="settings-gear-btn"
+            onClick={() => setShowSettings(true)}
+            title="Technician Settings"
+          >
+            ⚙
+          </button>
         </div>
       </div>
 
@@ -44,6 +55,8 @@ export default function ChannelPanel() {
         {active === 'email' && <EmailChannel key="email" />}
         {active === 'voip'  && <VoipChannel key="voip" />}
       </div>
+
+      {showSettings && <TechSettings onClose={() => setShowSettings(false)} />}
     </div>
   );
 }
