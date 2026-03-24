@@ -26,10 +26,13 @@ export function ScheduleProvider({ children }) {
   useEffect(() => { reload(); }, [reload]);
 
   const addJob = useCallback((job) => {
+    // Optimistically add to local state immediately so the schedule updates at once
     setJobs(prev => [...prev.filter(j => j.id !== job.id), job]);
     setNewJobId(job.id);
-    setTimeout(() => setNewJobId(null), 4000);
-  }, []);
+    // Re-fetch from server after a short delay to pick up the server-normalised tech name
+    setTimeout(() => reload(), 800);
+    setTimeout(() => setNewJobId(null), 8000);
+  }, [reload]);
 
   const refreshBookingSettings = useCallback(() => {
     fetch('/api/settings/booking')

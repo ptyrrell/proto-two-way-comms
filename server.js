@@ -413,7 +413,23 @@ app.post('/api/chat', async (req, res) => {
         booking.color = meta.border;
         booking.textColor = meta.text;
         booking.bgColor = meta.color;
+
+        // Normalise tech name — find case-insensitive match against known techs
+        const normTech = TECHS.find(t => t.toLowerCase() === (booking.tech || '').toLowerCase());
+        if (normTech) {
+          booking.tech = normTech;
+        } else if (booking.tech === 'TBD' || !normTech) {
+          // Assign a free tech for the slot, or fall back to first active tech
+          const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
+          const sh = booking.startHour;
+          const free = activeTechs.find(t =>
+            !jobs.some(j => j.tech === t && j.date === booking.date && j.startHour <= sh && sh < j.startHour + j.duration)
+          );
+          booking.tech = free || activeTechs[0] || TECHS[0];
+        }
+
         jobs.push(booking);
+        console.log(`✅ Chat booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech}`);
       } catch (e) { console.error('Booking parse error', e); }
     }
 
@@ -587,13 +603,27 @@ app.post('/api/voice/process', async (req, res) => {
       try {
         booking = JSON.parse(match[1]);
         const meta = TYPE_META[booking.type] || TYPE_META.General;
-        booking.id       = `J-${++nextId}`;
-        booking.color    = meta.border;
+        booking.id        = `J-${++nextId}`;
+        booking.color     = meta.border;
         booking.textColor = meta.text;
-        booking.bgColor  = meta.color;
+        booking.bgColor   = meta.color;
+
+        // Normalise / validate tech assignment
+        const normTech = TECHS.find(t => t.toLowerCase() === (booking.tech || '').toLowerCase());
+        if (normTech) {
+          booking.tech = normTech;
+        } else {
+          const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
+          const sh = booking.startHour;
+          const free = activeTechs.find(t =>
+            !jobs.some(j => j.tech === t && j.date === booking.date && j.startHour <= sh && sh < j.startHour + j.duration)
+          );
+          booking.tech = free || activeTechs[0] || TECHS[0];
+        }
+
         jobs.push(booking);
-        session.booking  = booking;
-        console.log(`✅ Voice booking created: ${booking.id} — ${booking.customer}`);
+        session.booking = booking;
+        console.log(`✅ Voice booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech}`);
       } catch (e) { console.error('Voice booking parse error', e); }
     }
 
