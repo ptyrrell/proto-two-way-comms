@@ -334,7 +334,7 @@ BOOKING:{"tech":"NAME","customer":"NAME","type":"TYPE","address":"ADDR","mobile"
 Quote request:
 BOOKING:{"tech":"TBD","customer":"NAME","type":"Quote","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"TBD","startHour":0,"duration":0,"amount":0,"status":"quote-pending","description":"DESCRIPTION OF WORK"}
 
-ADDRESS VALIDATION: When repeating an address back, confirm it clearly. If it sounds like an apartment or commercial premises, ask for unit/level/access details.
+ADDRESS VALIDATION: When the customer gives you an address, say "Just confirming that address for you..." and include the marker [VALIDATE_ADDRESS:<the address they gave>] on its own line — Google will validate it and return the formatted version. Then confirm: "I have you at [formatted address] — is that right?" If it sounds like an apartment or commercial premises, also ask for unit/level/access details.
 
 Keep responses brief and action-oriented. Never mention technician names to the customer.${extra}`;
 }
@@ -390,6 +390,23 @@ app.get('/api/config', (_req, res) => {
 });
 
 // Address validation via Google Geocoding (or basic format check if no key)
+// ── Internal address validation helper (reused by chat + voice) ────
+async function validateAddressInternal(address) {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return { validated: false, formatted: address.trim() };
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&region=au&key=${apiKey}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.status === 'OK' && data.results?.length) {
+      return { validated: true, formatted: data.results[0].formatted_address };
+    }
+    return { validated: false, formatted: address.trim() };
+  } catch {
+    return { validated: false, formatted: address.trim() };
+  }
+}
+
 app.post('/api/validate-address', async (req, res) => {
   const { address } = req.body;
   if (!address?.trim()) return res.json({ ok: false, message: 'No address provided' });
@@ -463,8 +480,24 @@ app.post('/api/chat', async (req, res) => {
     });
 
     const raw = resp.content[0].text;
-    // Strip [NEEDS_ADDRESS] and [NEEDS_CONTACT] markers from displayed text
-    const displayText = raw
+
+    // ── Address validation: handle [VALIDATE_ADDRESS:<addr>] inline ──
+    let addressValidation = null;
+    let processedRaw = raw;
+    const addrMatch = raw.match(/\[VALIDATE_ADDRESS:([^\]]+)\]/);
+    if (addrMatch) {
+      const addrInput = addrMatch[1].trim();
+      addressValidation = await validateAddressInternal(addrInput);
+      // Replace marker in displayed text with a confirmed/formatted result token
+      const token = addressValidation.validated
+        ? `✓ *${addressValidation.formatted}*`
+        : addrInput;
+      processedRaw = processedRaw.replace(addrMatch[0], token);
+      console.log(`📍 Address validated: "${addrInput}" → "${addressValidation.formatted}" (${addressValidation.validated ? 'OK' : 'fallback'})`);
+    }
+
+    // Strip other markers from displayed text
+    const displayText = processedRaw
       .replace(/BOOKING:\{[\s\S]*?\}/g, '')
       .replace(/\[NEEDS_ADDRESS\]/g, '')
       .replace(/\[NEEDS_CONTACT\]/g, '')
@@ -476,6 +509,10 @@ app.post('/api/chat', async (req, res) => {
     if (match) {
       try {
         booking = JSON.parse(match[1]);
+        // If we just validated an address and booking.address is unset/generic, use it
+        if (addressValidation?.formatted && (!booking.address || booking.address === 'ADDR')) {
+          booking.address = addressValidation.formatted;
+        }
         const meta = TYPE_META[booking.type] || TYPE_META.General;
         booking.id = `J-${++nextId}`;
         booking.color = meta.border;
@@ -496,7 +533,7 @@ app.post('/api/chat', async (req, res) => {
     const needsAddress = raw.includes('[NEEDS_ADDRESS]');
     const needsContact = raw.includes('[NEEDS_CONTACT]');
 
-    res.json({ text: displayText, booking, needsAddress, needsContact });
+    res.json({ text: displayText, booking, needsAddress, needsContact, addressValidation });
   } catch (err) {
     console.error('Claude error:', err.message);
     res.status(500).json({ error: err.message });
@@ -655,8 +692,19 @@ app.post('/api/voice/process', async (req, res) => {
   try {
     const raw = await claudeVoiceTurn(session.history);
 
+    // ── Address validation in voice turn ────────────────────────────
+    let processedRaw = raw;
+    const voiceAddrMatch = raw.match(/\[VALIDATE_ADDRESS:([^\]]+)\]/);
+    if (voiceAddrMatch) {
+      const addrInput = voiceAddrMatch[1].trim();
+      const result    = await validateAddressInternal(addrInput);
+      // For voice: replace marker with natural spoken address
+      processedRaw = processedRaw.replace(voiceAddrMatch[0], result.formatted);
+      console.log(`📍 Voice address validated: "${addrInput}" → "${result.formatted}"`);
+    }
+
     // Detect booking
-    const match = raw.match(/BOOKING:([\s\S]*?\})/);
+    const match = processedRaw.match(/BOOKING:([\s\S]*?\})/);
     let booking = null;
     if (match) {
       try {
@@ -678,10 +726,10 @@ app.post('/api/voice/process', async (req, res) => {
       } catch (e) { console.error('Voice booking parse error', e); }
     }
 
-    const spoken = forVoice(raw);
+    const spoken = forVoice(processedRaw);
 
-    // Add AI turn to history
-    session.history.push({ role: 'assistant', content: raw });
+    // Add AI turn to history (use processedRaw so validated address is in context)
+    session.history.push({ role: 'assistant', content: processedRaw });
     session.turns.push({ role: 'assistant', content: spoken, ts: new Date().toISOString() });
 
     const isBookingDone = !!booking;

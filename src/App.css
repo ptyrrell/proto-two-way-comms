@@ -1342,6 +1342,24 @@ body {
 }
 .addr-message.ok   { color: #22c55e; }
 .addr-message.warn { color: #f59e0b; }
+
+/* Address validation pill (inline in chat) */
+.addr-validation-pill {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 12px 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 12px; line-height: 1.4;
+  animation: slideUp 0.3s ease-out;
+}
+.addr-validation-pill.ok   { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #bbf7d0; }
+.addr-validation-pill.warn { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: #fde68a; }
+.avp-icon { flex-shrink: 0; font-size: 14px; }
+.avp-text strong { display: block; margin-bottom: 1px; }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .addr-note { font-size: 10px; color: var(--muted); font-style: italic; }
 .addr-submit-btn {
   align-self: flex-start; background: var(--surface3);

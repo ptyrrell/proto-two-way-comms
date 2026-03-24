@@ -2,11 +2,12 @@ import { useState, useCallback, useRef } from 'react';
 import { useSchedule } from '../context/ScheduleContext';
 
 export function useChat(channel) {
-  const [messages,     setMessages]     = useState([]);
-  const [isLoading,    setIsLoading]    = useState(false);
-  const [lastBooking,  setLastBooking]  = useState(null);
-  const [needsAddress, setNeedsAddress] = useState(false);
-  const [needsContact, setNeedsContact] = useState(false);
+  const [messages,          setMessages]          = useState([]);
+  const [isLoading,         setIsLoading]         = useState(false);
+  const [lastBooking,       setLastBooking]        = useState(null);
+  const [needsAddress,      setNeedsAddress]      = useState(false);
+  const [needsContact,      setNeedsContact]      = useState(false);
+  const [addressValidation, setAddressValidation] = useState(null);
   const initiated = useRef(false);
   const { addJob } = useSchedule();
 
@@ -23,10 +24,14 @@ export function useChat(channel) {
   const handleData = useCallback((data) => {
     setNeedsAddress(!!data.needsAddress);
     setNeedsContact(!!data.needsContact);
+    if (data.addressValidation) {
+      setAddressValidation(data.addressValidation);
+      // Auto-clear after 8 seconds
+      setTimeout(() => setAddressValidation(null), 8000);
+    }
     if (data.booking) {
       addJob(data.booking);
       setLastBooking(data.booking);
-      // Clear smart inputs after booking is confirmed
       setNeedsAddress(false);
       setNeedsContact(false);
     }
@@ -81,5 +86,5 @@ export function useChat(channel) {
     }
   }, [messages, isLoading, callApi, handleData]);
 
-  return { messages, isLoading, sendMessage, initiate, lastBooking, needsAddress, needsContact };
+  return { messages, isLoading, sendMessage, initiate, lastBooking, needsAddress, needsContact, addressValidation };
 }

@@ -36,7 +36,7 @@ const TABS = [
 ];
 
 export default function WebChat() {
-  const { messages, isLoading, sendMessage, initiate, lastBooking, needsAddress, needsContact } = useChat('web');
+  const { messages, isLoading, sendMessage, initiate, lastBooking, needsAddress, needsContact, addressValidation } = useChat('web');
   const [input,   setInput]   = useState('');
   const [webView, setWebView] = useState('chat'); // 'chat' | 'client' | 'details'
   const bottomRef = useRef(null);
@@ -130,6 +130,17 @@ export default function WebChat() {
 
           <div ref={bottomRef} />
         </div>
+
+        {addressValidation && (
+          <div className={`addr-validation-pill${addressValidation.validated ? ' ok' : ' warn'}`}>
+            <span className="avp-icon">{addressValidation.validated ? '📍✓' : '📍'}</span>
+            <span className="avp-text">
+              {addressValidation.validated
+                ? <><strong>Address confirmed:</strong> {addressValidation.formatted}</>
+                : <><strong>Address accepted:</strong> {addressValidation.formatted} (Google validation unavailable)</>}
+            </span>
+          </div>
+        )}
 
         {needsAddress && !isLoading && (
           <AddressInput onSubmit={addr => sendMessage(addr)} />
