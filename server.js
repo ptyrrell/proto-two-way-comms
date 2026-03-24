@@ -213,7 +213,8 @@ function buildSystem(channel) {
     sms:   'SMS — brief, plain text, under 160 chars per reply when possible',
     email: `email — professional and friendly, greet by name once known, sign off as "${companyName} Team"`,
     voip:  `phone call — natural spoken language, no markdown, short sentences, no lists.
-VOICE-SPECIFIC FLOW: The opening greeting asks if the caller is happy to book with you. If they say YES, sure, okay, go ahead, or any affirmative — respond with exactly: "Wonderful! Please just go ahead and give me all the details you have in one go — describe the problem, your name, address, contact email and phone number, and I'll get that sorted for you." Then wait for them to provide everything. If they say NO or want a human, respond with: "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling FieldInsight, goodbye!" and end the call.`,
+VOICE-SPECIFIC FLOW: The opening greeting asks if the caller is happy to book with you. If they say YES, sure, okay, go ahead, or any affirmative — respond with exactly: "Wonderful! Please just go ahead and give me all the details you have in one go — describe the problem, your name, address, contact email and phone number, and I'll get that sorted for you." Then wait for them to provide everything. If they say NO or want a human, respond with: "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling FieldInsight, goodbye!" and end the call.
+VOICE — MISHEARING RULE: If you did not clearly hear a number (phone, mobile) or email address, respond only with a short natural retry like "Sorry, could you say that again?" or "I didn't quite catch that one." Never explain what a phone number or email address looks like. Never describe expected formats or digit counts. Just ask them to repeat it.`,
   }[channel] || 'conversational';
 
   // ── Job type instructions ──
@@ -287,7 +288,9 @@ CONTACT COLLECTION (do this after confirming service details, before finalising)
 1. "Can I confirm your mobile number? We may already have it on file." → collect/confirm mobile
 2. "And your email address for the confirmation?" → collect email
 3. Once confirmed say: "Perfect — a confirmation email and SMS will be sent, and you'll receive a reminder 1 hour before your appointment."
-When you ask for contact details, include [NEEDS_CONTACT] in your message.` : '';
+When you ask for contact details, include [NEEDS_CONTACT] in your message.
+
+IMPORTANT — if you did not clearly hear a phone number or email, simply say "Sorry, could you repeat that?" or "I didn't quite catch that — could you say it again?". Do NOT explain what a phone number looks like, do NOT describe the expected format, do NOT say things like "a mobile number is usually 10 digits". Just ask them to repeat it, warmly and briefly.` : '';
 
   // ── Required data fields ──
   const FIELD_META = {
