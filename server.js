@@ -391,7 +391,7 @@ app.get('/api/config', (_req, res) => {
     voiceNumber:      process.env.TWILIO_FROM_NUMBER || null,
     voiceEnabled:     !!twilioClient,
     voiceOptions:     VOICE_OPTIONS,
-    currentVoice:     bookingSettings.voiceModel || 'Polly.Olivia',
+    currentVoice:     bookingSettings.voiceModel || 'Polly.Nicole',
   });
 });
 
@@ -568,21 +568,26 @@ function forVoice(text) {
 }
 
 // ── Available TTS voices (Amazon Polly via Twilio) ─────────────────
-// language tag must match the voice's locale for correct pronunciation
+// Standard Polly voices are universally supported.
+// Neural (-Neural suffix) require Twilio's Neural TTS add-on.
+// Do NOT set language on <Say> for Polly — Polly uses its own locale.
 const VOICE_OPTIONS = {
-  'Polly.Olivia':        { lang: 'en-AU', label: '🇦🇺 Olivia — Australian Female (Neural)' },
-  'Polly.Russell':       { lang: 'en-AU', label: '🇦🇺 Russell — Australian Male' },
-  'Polly.Amy-Neural':    { lang: 'en-GB', label: '🇬🇧 Amy — British Female (Neural)' },
-  'Polly.Brian-Neural':  { lang: 'en-GB', label: '🇬🇧 Brian — British Male (Neural)' },
-  'Polly.Emma-Neural':   { lang: 'en-GB', label: '🇬🇧 Emma — British Female (Neural)' },
-  'Polly.Aria':          { lang: 'en-NZ', label: '🇳🇿 Aria — New Zealand Female (Neural)' },
-  'Polly.Joanna-Neural': { lang: 'en-US', label: '🇺🇸 Joanna — US Female (Neural)' },
-  'Polly.Matthew-Neural':{ lang: 'en-US', label: '🇺🇸 Matthew — US Male (Neural)' },
+  'Polly.Nicole':        { label: '🇦🇺 Nicole — Australian Female (Standard) ★ recommended' },
+  'Polly.Russell':       { label: '🇦🇺 Russell — Australian Male (Standard)' },
+  'Polly.Amy':           { label: '🇬🇧 Amy — British Female (Standard)' },
+  'Polly.Brian':         { label: '🇬🇧 Brian — British Male (Standard)' },
+  'Polly.Emma':          { label: '🇬🇧 Emma — British Female (Standard)' },
+  'Polly.Joanna':        { label: '🇺🇸 Joanna — US Female (Standard)' },
+  'Polly.Matthew':       { label: '🇺🇸 Matthew — US Male (Standard)' },
+  'Polly.Amy-Neural':    { label: '🇬🇧 Amy — British Female (Neural)' },
+  'Polly.Brian-Neural':  { label: '🇬🇧 Brian — British Male (Neural)' },
+  'Polly.Joanna-Neural': { label: '🇺🇸 Joanna — US Female (Neural)' },
+  'Polly.Matthew-Neural':{ label: '🇺🇸 Matthew — US Male (Neural)' },
 };
 
 function getVoiceMeta() {
-  const key = bookingSettings.voiceModel || 'Polly.Olivia';
-  return { voice: key, lang: VOICE_OPTIONS[key]?.lang || 'en-AU' };
+  const key = bookingSettings.voiceModel || 'Polly.Nicole';
+  return { voice: key };
 }
 
 // Hints that help STT recognise Australian phone numbers and common field-service terms
@@ -600,13 +605,15 @@ const VOICE_HINTS = [
 function buildTwiML(spokenText, actionUrl, end = false) {
   const safe     = xmlEsc(spokenText);
   const model    = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
+  // Note: do NOT set language on <Say> for Polly voices — Polly uses its own locale.
+  // language on <Gather> controls STT; language on <Say> is only for Twilio's own TTS.
   const enhanced = bookingSettings.voiceEnhanced ? 'true' : 'false';
-  const { voice, lang } = getVoiceMeta();
+  const { voice } = getVoiceMeta();
 
   if (end) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}" language="${lang}">${safe}</Say>
+  <Say voice="${voice}">${safe}</Say>
   <Hangup/>
 </Response>`;
   }
@@ -615,9 +622,9 @@ function buildTwiML(spokenText, actionUrl, end = false) {
   <Gather input="speech" action="${actionUrl}" method="POST"
           speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
-    <Say voice="${voice}" language="${lang}">${safe}</Say>
+    <Say voice="${voice}">${safe}</Say>
   </Gather>
-  <Say voice="${voice}" language="${lang}">Sorry, I didn't catch that. Let me try again.</Say>
+  <Say voice="${voice}">Sorry, I didn't catch that. Let me try again.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`;
 }
@@ -658,7 +665,7 @@ app.post('/api/voice/incoming', (req, res) => {
   const actionUrl        = `${BASE_URL}/api/voice/process`;
   const model            = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
   const enhanced         = bookingSettings.voiceEnhanced ? 'true' : 'false';
-  const { voice, lang }  = getVoiceMeta();
+  const { voice }        = getVoiceMeta();
 
   res.set('Content-Type', 'text/xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -666,9 +673,9 @@ app.post('/api/voice/incoming', (req, res) => {
   <Gather input="speech" action="${actionUrl}" method="POST"
           speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
-    <Say voice="${voice}" language="${lang}">${greeting}</Say>
+    <Say voice="${voice}">${greeting}</Say>
   </Gather>
-  <Say voice="${voice}" language="${lang}">I didn't catch that. Let me try again.</Say>
+  <Say voice="${voice}">I didn't catch that. Let me try again.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`);
 });

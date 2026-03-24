@@ -63,7 +63,7 @@ export default function TechSettings({ onClose }) {
     lunchEnabled:       true,
     lunchStart:         12,
     lunchEnd:           13,
-    voiceModel:         'Polly.Olivia',
+    voiceModel:         'Polly.Nicole',
     voiceSpeechModel:   'numbers_and_commands',
     voiceEnhanced:      true,
     voiceMaxTurns:      20,
@@ -378,23 +378,24 @@ export default function TechSettings({ onClose }) {
             <div className="br-control">
               <select
                 className="br-select"
-                value={bookingSettings.voiceModel || 'Polly.Olivia'}
+                value={bookingSettings.voiceModel || 'Polly.Nicole'}
                 onChange={e => saveBooking({ voiceModel: e.target.value })}
-                style={{ minWidth: 260 }}
+                style={{ minWidth: 280 }}
               >
                 <optgroup label="🇦🇺 Australian">
-                  <option value="Polly.Olivia">Olivia — AU Female (Neural) ★ recommended</option>
-                  <option value="Polly.Russell">Russell — AU Male</option>
+                  <option value="Polly.Nicole">Nicole — AU Female (Standard) ★ recommended</option>
+                  <option value="Polly.Russell">Russell — AU Male (Standard)</option>
                 </optgroup>
                 <optgroup label="🇬🇧 British">
+                  <option value="Polly.Amy">Amy — UK Female (Standard)</option>
+                  <option value="Polly.Brian">Brian — UK Male (Standard)</option>
+                  <option value="Polly.Emma">Emma — UK Female (Standard)</option>
                   <option value="Polly.Amy-Neural">Amy — UK Female (Neural)</option>
                   <option value="Polly.Brian-Neural">Brian — UK Male (Neural)</option>
-                  <option value="Polly.Emma-Neural">Emma — UK Female (Neural)</option>
-                </optgroup>
-                <optgroup label="🇳🇿 New Zealand">
-                  <option value="Polly.Aria">Aria — NZ Female (Neural)</option>
                 </optgroup>
                 <optgroup label="🇺🇸 US English">
+                  <option value="Polly.Joanna">Joanna — US Female (Standard)</option>
+                  <option value="Polly.Matthew">Matthew — US Male (Standard)</option>
                   <option value="Polly.Joanna-Neural">Joanna — US Female (Neural)</option>
                   <option value="Polly.Matthew-Neural">Matthew — US Male (Neural)</option>
                 </optgroup>
