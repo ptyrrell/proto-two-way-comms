@@ -41,7 +41,7 @@ const voiceSessions = new Map();
 const TECHS = ['Jake Morrison', 'Sam Peters', 'Brad Kim', 'Amy Chen'];
 
 // Technician self-booking availability (all on by default)
-let techSettings = Object.fromEntries(TECHS.map(t => [t, { availableForBooking: true }]));
+let techSettings = Object.fromEntries(TECHS.map(t => [t, { availableForBooking: true, onCall: false }]));
 
 // Booking rules
 let bookingSettings = {
@@ -146,33 +146,42 @@ function getAvailableSlots() {
   for (let day = 1; day <= 14; day++) {
     const date  = dateStr(day);
     const dObj  = new Date(date);
-    if (!workingDays.includes(dObj.getDay())) continue;
+    const dayOfWeek = dObj.getDay();
+    const isWorkingDay = workingDays.includes(dayOfWeek);
 
-    // Sort techs by load so the AI naturally offers the least-busy technician
+    // Sort techs by load for load balancing
     const sorted = [...activeTechs].sort((a, b) => {
       const hrs = t => jobs.filter(j => j.tech === t).reduce((s, j) => s + (j.duration || 1), 0);
       return hrs(a) - hrs(b);
     });
 
     for (const tech of sorted) {
-      for (let hour = startHour; hour + dur <= endHour; hour++) {
-        // Buffer check: slot must start at least bufferHours from now
+      const isOnCall = techSettings[tech]?.onCall === true;
+
+      // On-call techs: available all 24h any day. Regular techs: working days + hours only.
+      const dayHourStart = isOnCall ? 0  : (isWorkingDay ? startHour : null);
+      const dayHourEnd   = isOnCall ? 24 : (isWorkingDay ? endHour   : null);
+      if (dayHourStart === null) continue; // regular tech, non-working day
+
+      for (let hour = dayHourStart; hour + dur <= dayHourEnd; hour++) {
+        // Buffer check
         const slotTime = new Date(date);
         slotTime.setHours(hour, 0, 0, 0);
         if (slotTime.getTime() - Date.now() < bufferMs) continue;
 
-        // Lunch overlap: skip if any hour in [hour, hour+dur) touches lunch
-        if (lunchEnabled) {
+        // Lunch overlap: only applies to regular (non-on-call) techs
+        if (!isOnCall && lunchEnabled) {
           const touchesLunch = Array.from({ length: dur }, (_, i) => hour + i)
             .some(h => h >= lunchStart && h < lunchEnd);
           if (touchesLunch) continue;
         }
 
-        // Full conflict check for the entire job duration
+        // Conflict check
         if (!hasConflict(tech, date, hour, dur)) {
           const label = dObj.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
           const endH  = hour + dur;
-          slots.push({ tech, date, startHour: hour, label: `${tech} — ${label} at ${hour}:00–${endH}:00` });
+          const onCallTag = isOnCall && !isWorkingDay ? ' (on-call)' : isOnCall && (hour < startHour || hour >= endHour) ? ' (on-call)' : '';
+          slots.push({ tech, date, startHour: hour, onCall: isOnCall, label: `${tech}${onCallTag} — ${label} at ${hour}:00–${endH}:00` });
           break; // one slot per tech per day
         }
       }
@@ -380,10 +389,11 @@ app.get('/api/settings/techs', (_req, res) => {
 });
 
 app.post('/api/settings/techs', (req, res) => {
-  const { tech, availableForBooking } = req.body;
+  const { tech, availableForBooking, onCall } = req.body;
   if (techSettings[tech] !== undefined) {
-    techSettings[tech] = { ...techSettings[tech], availableForBooking };
-    console.log(`Tech "${tech}" self-booking: ${availableForBooking}`);
+    if (availableForBooking !== undefined) techSettings[tech] = { ...techSettings[tech], availableForBooking };
+    if (onCall             !== undefined) techSettings[tech] = { ...techSettings[tech], onCall };
+    console.log(`Tech "${tech}" — available: ${techSettings[tech].availableForBooking}, onCall: ${techSettings[tech].onCall}`);
   }
   res.json({ ok: true, techSettings });
 });

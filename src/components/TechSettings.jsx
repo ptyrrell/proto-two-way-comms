@@ -102,6 +102,19 @@ export default function TechSettings({ onClose }) {
     flash();
   };
 
+  const toggleOnCall = async (tech) => {
+    const newVal = !techSettings[tech]?.onCall;
+    setTechSettings(prev => ({ ...prev, [tech]: { ...prev[tech], onCall: newVal } }));
+    setSaving(true);
+    await fetch('/api/settings/techs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tech, onCall: newVal }),
+    });
+    setSaving(false);
+    flash();
+  };
+
   /* ─── Prompt settings save ─────────────────────────── */
   const savePrompt = async (patch) => {
     const next = { ...promptSettings, ...patch };
@@ -186,8 +199,9 @@ export default function TechSettings({ onClose }) {
         </div>
         <div className="tech-list">
           {Object.entries(techSettings).map(([tech, cfg]) => {
-            const meta = TECH_META[tech] || { role: 'Technician', icon: '👷' };
-            const on   = cfg?.availableForBooking ?? true;
+            const meta   = TECH_META[tech] || { role: 'Technician', icon: '👷' };
+            const on     = cfg?.availableForBooking ?? true;
+            const onCall = cfg?.onCall ?? false;
             return (
               <div key={tech} className={`tech-row${on ? '' : ' off'}`}>
                 <div className="tech-row-icon">{meta.icon}</div>
@@ -196,6 +210,22 @@ export default function TechSettings({ onClose }) {
                   <div className="tech-row-role">{meta.role}</div>
                 </div>
                 <div className="tech-row-right">
+                  {/* On Call checkbox */}
+                  <label
+                    className={`oncall-label${onCall ? ' active' : ''}`}
+                    title="On Call — available 24x7, jobs can be allocated outside normal hours"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={onCall}
+                      onChange={() => toggleOnCall(tech)}
+                      className="oncall-checkbox"
+                    />
+                    <span className="oncall-icon">📟</span>
+                    <span className="oncall-text">On Call</span>
+                  </label>
+
+                  {/* Available toggle */}
                   <span className={`avail-pill${on ? ' on' : ' off'}`}>
                     {on ? 'Available' : 'Hidden'}
                   </span>
