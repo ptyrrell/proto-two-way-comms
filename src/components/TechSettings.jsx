@@ -26,7 +26,13 @@ const ALL_DATA_FIELDS = [
   { id: 'name',        icon: '👤', label: 'Customer Name',    desc: 'Ask for the customer\'s full name' },
   { id: 'business',    icon: '🏢', label: 'Business Name',    desc: 'Ask if booking is for a business and collect its name' },
   { id: 'description', icon: '📋', label: 'Job Description',  desc: 'Ask customer to describe the issue or work needed' },
-  { id: 'urgency',     icon: '⚡', label: 'Urgency',          desc: 'Ask how urgent — routine, soon, or emergency' },
+];
+
+const ALL_URGENCY_LEVELS = [
+  { id: 'Routine',   icon: '🟢', desc: 'No hurry — book at convenience' },
+  { id: 'Soon',      icon: '🟡', desc: 'Within the next few days' },
+  { id: 'Urgent',    icon: '🟠', desc: 'Today or tomorrow if possible' },
+  { id: 'Emergency', icon: '🔴', desc: 'Critical — needs immediate attention' },
 ];
 
 const ALL_JOB_TYPES = [
@@ -46,7 +52,8 @@ const DEFAULT_PROMPT = {
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
-  requiredFields:        ['date', 'time', 'address', 'name', 'business', 'description', 'urgency'],
+  enabledUrgencyLevels:  ['Routine', 'Soon', 'Urgent', 'Emergency'],
+  requiredFields:        ['date', 'time', 'address', 'name', 'business', 'description'],
   customInstructions:    '',
   customFullPrompt:      null,
 };
@@ -140,6 +147,12 @@ export default function TechSettings({ onClose }) {
     const cur = promptSettings.requiredFields || [];
     const next = cur.includes(id) ? cur.filter(f => f !== id) : [...cur, id];
     savePrompt({ requiredFields: next });
+  };
+
+  const toggleUrgencyLevel = (id) => {
+    const cur = promptSettings.enabledUrgencyLevels || [];
+    const next = cur.includes(id) ? cur.filter(u => u !== id) : [...cur, id];
+    savePrompt({ enabledUrgencyLevels: next });
   };
 
   const enterFullEdit = () => {
@@ -641,6 +654,36 @@ export default function TechSettings({ onClose }) {
         <div className="jt-hint">
           {ALL_JOB_TYPES.filter(jt => (promptSettings.enabledJobTypes||[]).includes(jt.id)).map(jt => (
             <span key={jt.id} className="jt-desc-item">{jt.icon} <strong>{jt.id}</strong> — {jt.desc}</span>
+          ))}
+        </div>
+
+        {/* ─── URGENCY LEVELS ─────────────────────────────── */}
+        <div className="settings-section-label" style={{ marginTop: '20px' }}>
+          <span>⚡</span> Urgency Levels
+        </div>
+        <div className="jt-hint" style={{ marginBottom: '8px' }}>
+          Fiona infers urgency from the conversation and stamps it on the job. Enable the levels that apply to your business.
+        </div>
+        <div className="job-types-grid">
+          {ALL_URGENCY_LEVELS.map(u => {
+            const on = (promptSettings.enabledUrgencyLevels || []).includes(u.id);
+            return (
+              <button
+                key={u.id}
+                className={`jt-chip${on ? ' on' : ' off'}`}
+                onClick={() => toggleUrgencyLevel(u.id)}
+                title={u.desc}
+              >
+                <span className="jt-icon">{u.icon}</span>
+                <span className="jt-label">{u.id}</span>
+                <span className={`jt-dot${on ? ' on' : ''}`} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="jt-desc-list" style={{ marginTop: '6px' }}>
+          {ALL_URGENCY_LEVELS.filter(u => (promptSettings.enabledUrgencyLevels || []).includes(u.id)).map(u => (
+            <span key={u.id} className="jt-desc-item">{u.icon} <strong>{u.id}</strong> — {u.desc}</span>
           ))}
         </div>
 

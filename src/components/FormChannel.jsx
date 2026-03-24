@@ -13,11 +13,14 @@ const JOB_TYPES = [
   { id: 'Service/Breakdown', icon: '🚨', label: 'Service / Breakdown', desc: 'Urgent reactive service — we\'ll get someone out fast' },
 ];
 
-const URGENCY = [
-  { id: 'routine',   label: '📅 Routine',   desc: 'No hurry, book at convenience' },
-  { id: 'soon',      label: '⏰ Soon',       desc: 'Within the next few days' },
-  { id: 'emergency', label: '🚨 Emergency', desc: 'Urgent — needs attention ASAP' },
-];
+// Urgency levels are fetched from settings; this is the fallback
+const URGENCY_META = {
+  Routine:   { icon: '🟢', desc: 'No hurry, book at convenience' },
+  Soon:      { icon: '🟡', desc: 'Within the next few days' },
+  Urgent:    { icon: '🟠', desc: 'Today or tomorrow if possible' },
+  Emergency: { icon: '🔴', desc: 'Critical — needs attention ASAP' },
+};
+const DEFAULT_URGENCY = ['Routine', 'Soon', 'Urgent', 'Emergency'];
 
 function fmtHour(h) {
   if (h === 0)  return '12am';
@@ -175,10 +178,18 @@ export default function FormChannel() {
   const [submitting, setSubmitting] = useState(false);
   const [errors,  setErrors]  = useState({});
   const [booking, setBooking] = useState(null);
+  const [urgencyLevels, setUrgencyLevels] = useState(DEFAULT_URGENCY);
+
+  useEffect(() => {
+    fetch('/api/settings/prompt')
+      .then(r => r.json())
+      .then(d => { if (d.enabledUrgencyLevels?.length) setUrgencyLevels(d.enabledUrgencyLevels); })
+      .catch(() => {});
+  }, []);
 
   const [form, setForm] = useState({
     name: '', business: '', mobile: '', email: '',
-    jobType: '', urgency: 'routine',
+    jobType: '', urgency: '',
     description: '', unitType: '', unitLocation: '',
     address: '',
     date: '', startHour: null,
@@ -299,7 +310,7 @@ export default function FormChannel() {
           <ClientBookingView booking={booking} />
           <button
             className="fw-restart-btn"
-            onClick={() => { setPhase('landing'); setStep(1); setForm({ name:'',business:'',mobile:'',email:'',jobType:'',urgency:'routine',description:'',unitType:'',unitLocation:'',address:'',date:'',startHour:null }); setBooking(null); }}
+            onClick={() => { setPhase('landing'); setStep(1); setForm({ name:'',business:'',mobile:'',email:'',jobType:'',urgency:'',description:'',unitType:'',unitLocation:'',address:'',date:'',startHour:null }); setBooking(null); }}
           >
             ← Make Another Booking
           </button>
@@ -386,16 +397,19 @@ export default function FormChannel() {
               <div className="fw-urgency-row">
                 <div className="fw-field-label">Urgency</div>
                 <div className="fw-urgency-btns">
-                  {URGENCY.map(u => (
-                    <button
-                      key={u.id}
-                      className={`fw-urgency-btn${form.urgency === u.id ? ' active' : ''}`}
-                      onClick={() => set('urgency', u.id)}
-                    >
-                      <span>{u.label}</span>
-                      <span className="fw-urgency-desc">{u.desc}</span>
-                    </button>
-                  ))}
+                  {urgencyLevels.map(id => {
+                    const meta = URGENCY_META[id] || { icon: '⚪', desc: '' };
+                    return (
+                      <button
+                        key={id}
+                        className={`fw-urgency-btn${form.urgency === id ? ' active' : ''}`}
+                        onClick={() => set('urgency', id)}
+                      >
+                        <span>{meta.icon} {id}</span>
+                        <span className="fw-urgency-desc">{meta.desc}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

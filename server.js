@@ -71,7 +71,7 @@ let promptSettings = {
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
   enabledUrgencyLevels:  ['Routine', 'Soon', 'Urgent', 'Emergency'],
-  requiredFields:        ['date', 'time', 'address', 'name', 'business', 'description'],
+  requiredFields:        ['date', 'time', 'address', 'name', 'business', 'description'],  // urgency is now a tag-cloud, not a free-text field
   customInstructions:    '',
   customFullPrompt:      null,   // when set, overrides the auto-built prompt; supports tokens: {TODAY} {SLOTS} {PERSONA} {COMPANY}
 };
@@ -204,7 +204,7 @@ function buildSlotList(showTechNames) {
 function buildSystem(channel) {
   const today    = new Date().toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   const slotList = buildSlotList(promptSettings.showTechNames);
-  const { personaName, companyName, greeting, enabledJobTypes, collectContactDetails, requiredFields, customInstructions, customFullPrompt } = promptSettings;
+  const { personaName, companyName, greeting, enabledJobTypes, enabledUrgencyLevels, collectContactDetails, requiredFields, customInstructions, customFullPrompt } = promptSettings;
 
   // ── Custom full prompt override ──
   if (customFullPrompt?.trim()) {
@@ -332,12 +332,20 @@ IMPORTANT — if you did not clearly hear a phone number or email, simply say "S
     name:        { label: 'Customer Name',   prompt: 'Ask for the customer\'s full name early in the conversation.' },
     business:    { label: 'Business Name',   prompt: 'Ask whether the booking is for a business and collect the business name if so.' },
     description: { label: 'Job Description', prompt: 'Ask the customer to describe the issue or work needed.' },
-    urgency:     { label: 'Urgency',         prompt: 'Ask how urgent the request is — routine, soon, or emergency.' },
   };
   const fields = (requiredFields?.length ? requiredFields : []).filter(f => FIELD_META[f]);
   const dataSection = fields.length
     ? `\nDATA TO COLLECT during this conversation:\n${fields.map(f => `- ${FIELD_META[f].label}: ${FIELD_META[f].prompt}`).join('\n')}`
     : '';
+
+  // ── Urgency levels (structured tag, not free-text) ──
+  const urgencyLevels = enabledUrgencyLevels?.length ? enabledUrgencyLevels : ['Routine', 'Soon', 'Urgent', 'Emergency'];
+  const urgencySection = `
+URGENCY — during the conversation, classify the job urgency as one of: ${urgencyLevels.join(', ')}.
+- Listen for cues: "not working", "broken", "no cooling/heating/power" → Urgent or Emergency
+- "Would like it looked at", "no rush" → Routine or Soon
+- Do NOT ask "how urgent is this?" directly — infer from what they describe and confirm briefly if unsure.
+- Include the urgency value in the BOOKING JSON "urgency" field.`;
 
   // ── Tech routing (internal) ──
   const techRouting = `
@@ -359,6 +367,7 @@ JOB TYPE FLOWS:
 ${jobTypeSection}
 ${contactSection}
 ${dataSection}
+${urgencySection}
 
 AVAILABLE TIME SLOTS (next 2 weeks — times only, no names):
 ${slotList}
@@ -369,10 +378,10 @@ Default job duration: ${bookingSettings.defaultJobDuration || 1} hour(s) — use
 OUTPUT FORMATS (output on its own line when confirmed, no surrounding text):
 
 Standard booking:
-BOOKING:{"tech":"NAME","customer":"NAME","type":"TYPE","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"YYYY-MM-DD","startHour":9,"duration":${bookingSettings.defaultJobDuration || 1},"amount":0,"status":"pending"}
+BOOKING:{"tech":"NAME","customer":"NAME","type":"TYPE","urgency":"Routine","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"YYYY-MM-DD","startHour":9,"duration":${bookingSettings.defaultJobDuration || 1},"amount":0,"status":"pending"}
 
 Quote request:
-BOOKING:{"tech":"TBD","customer":"NAME","type":"Quote","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"TBD","startHour":0,"duration":0,"amount":0,"status":"quote-pending","description":"DESCRIPTION OF WORK"}
+BOOKING:{"tech":"TBD","customer":"NAME","type":"Quote","urgency":"Routine","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"TBD","startHour":0,"duration":0,"amount":0,"status":"quote-pending","description":"DESCRIPTION OF WORK"}
 
 ADDRESS VALIDATION: When the customer gives you an address, say "Just confirming that address for you..." and include the marker [VALIDATE_ADDRESS:<the address they gave>] on its own line — Google will validate it and return the formatted version. Then confirm: "I have you at [formatted address] — is that right?" If it sounds like an apartment or commercial premises, also ask for unit/level/access details.
 
@@ -407,7 +416,7 @@ app.get('/api/settings/prompt', (_req, res) => {
 });
 
 app.post('/api/settings/prompt', (req, res) => {
-  const allowed = ['personaName','companyName','greeting','voiceGreeting','showTechNames','collectContactDetails','enabledJobTypes','requiredFields','customInstructions','customFullPrompt'];
+  const allowed = ['personaName','companyName','greeting','voiceGreeting','showTechNames','collectContactDetails','enabledJobTypes','enabledUrgencyLevels','requiredFields','customInstructions','customFullPrompt'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) promptSettings[key] = req.body[key];
   }
