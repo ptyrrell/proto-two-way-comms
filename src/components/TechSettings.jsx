@@ -63,6 +63,7 @@ export default function TechSettings({ onClose }) {
     lunchEnabled:       true,
     lunchStart:         12,
     lunchEnd:           13,
+    voiceModel:         'Polly.Olivia',
     voiceSpeechModel:   'numbers_and_commands',
     voiceEnhanced:      true,
     voiceMaxTurns:      20,
@@ -367,6 +368,39 @@ export default function TechSettings({ onClose }) {
         </div>
 
         <div className="booking-rules">
+
+          {/* TTS Voice */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Fiona's Voice</div>
+              <div className="br-desc">Amazon Polly voice used for text-to-speech on calls</div>
+            </div>
+            <div className="br-control">
+              <select
+                className="br-select"
+                value={bookingSettings.voiceModel || 'Polly.Olivia'}
+                onChange={e => saveBooking({ voiceModel: e.target.value })}
+                style={{ minWidth: 260 }}
+              >
+                <optgroup label="🇦🇺 Australian">
+                  <option value="Polly.Olivia">Olivia — AU Female (Neural) ★ recommended</option>
+                  <option value="Polly.Russell">Russell — AU Male</option>
+                </optgroup>
+                <optgroup label="🇬🇧 British">
+                  <option value="Polly.Amy-Neural">Amy — UK Female (Neural)</option>
+                  <option value="Polly.Brian-Neural">Brian — UK Male (Neural)</option>
+                  <option value="Polly.Emma-Neural">Emma — UK Female (Neural)</option>
+                </optgroup>
+                <optgroup label="🇳🇿 New Zealand">
+                  <option value="Polly.Aria">Aria — NZ Female (Neural)</option>
+                </optgroup>
+                <optgroup label="🇺🇸 US English">
+                  <option value="Polly.Joanna-Neural">Joanna — US Female (Neural)</option>
+                  <option value="Polly.Matthew-Neural">Matthew — US Male (Neural)</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
 
           {/* Speech recognition model */}
           <div className="br-row">

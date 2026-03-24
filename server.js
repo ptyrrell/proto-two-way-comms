@@ -55,7 +55,8 @@ let bookingSettings = {
   // Job duration
   defaultJobDuration: 1,        // default job length in hours (60 min)
   // VOIP / IVR settings
-  voiceSpeechModel: 'numbers_and_commands', // best for phone numbers & digits
+  voiceModel:       'Polly.Olivia',         // TTS voice (Amazon Polly via Twilio)
+  voiceSpeechModel: 'numbers_and_commands', // STT model
   voiceEnhanced:    true,       // Twilio enhanced STT model (higher accuracy, extra cost)
   voiceMaxTurns:    20,         // maximum conversation turns before graceful exit
 };
@@ -389,6 +390,8 @@ app.get('/api/config', (_req, res) => {
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || null,
     voiceNumber:      process.env.TWILIO_FROM_NUMBER || null,
     voiceEnabled:     !!twilioClient,
+    voiceOptions:     VOICE_OPTIONS,
+    currentVoice:     bookingSettings.voiceModel || 'Polly.Olivia',
   });
 });
 
@@ -456,6 +459,7 @@ app.post('/api/settings/booking', (req, res) => {
   if (lunchStart         !== undefined) bookingSettings.lunchStart         = Number(lunchStart);
   if (lunchEnd           !== undefined) bookingSettings.lunchEnd           = Number(lunchEnd);
   if (defaultJobDuration !== undefined) bookingSettings.defaultJobDuration = Number(defaultJobDuration);
+  if (req.body.voiceModel !== undefined) bookingSettings.voiceModel        = req.body.voiceModel;
   if (voiceSpeechModel   !== undefined) bookingSettings.voiceSpeechModel   = voiceSpeechModel;
   if (voiceEnhanced      !== undefined) bookingSettings.voiceEnhanced      = Boolean(voiceEnhanced);
   if (voiceMaxTurns      !== undefined) bookingSettings.voiceMaxTurns      = Number(voiceMaxTurns);
@@ -563,6 +567,24 @@ function forVoice(text) {
     .trim();
 }
 
+// ── Available TTS voices (Amazon Polly via Twilio) ─────────────────
+// language tag must match the voice's locale for correct pronunciation
+const VOICE_OPTIONS = {
+  'Polly.Olivia':        { lang: 'en-AU', label: '🇦🇺 Olivia — Australian Female (Neural)' },
+  'Polly.Russell':       { lang: 'en-AU', label: '🇦🇺 Russell — Australian Male' },
+  'Polly.Amy-Neural':    { lang: 'en-GB', label: '🇬🇧 Amy — British Female (Neural)' },
+  'Polly.Brian-Neural':  { lang: 'en-GB', label: '🇬🇧 Brian — British Male (Neural)' },
+  'Polly.Emma-Neural':   { lang: 'en-GB', label: '🇬🇧 Emma — British Female (Neural)' },
+  'Polly.Aria':          { lang: 'en-NZ', label: '🇳🇿 Aria — New Zealand Female (Neural)' },
+  'Polly.Joanna-Neural': { lang: 'en-US', label: '🇺🇸 Joanna — US Female (Neural)' },
+  'Polly.Matthew-Neural':{ lang: 'en-US', label: '🇺🇸 Matthew — US Male (Neural)' },
+};
+
+function getVoiceMeta() {
+  const key = bookingSettings.voiceModel || 'Polly.Olivia';
+  return { voice: key, lang: VOICE_OPTIONS[key]?.lang || 'en-AU' };
+}
+
 // Hints that help STT recognise Australian phone numbers and common field-service terms
 const VOICE_HINTS = [
   // digits spoken individually
@@ -576,14 +598,15 @@ const VOICE_HINTS = [
 ].join(',');
 
 function buildTwiML(spokenText, actionUrl, end = false) {
-  const safe  = xmlEsc(spokenText);
-  const model = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
+  const safe     = xmlEsc(spokenText);
+  const model    = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
   const enhanced = bookingSettings.voiceEnhanced ? 'true' : 'false';
+  const { voice, lang } = getVoiceMeta();
 
   if (end) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Joanna" language="en-AU">${safe}</Say>
+  <Say voice="${voice}" language="${lang}">${safe}</Say>
   <Hangup/>
 </Response>`;
   }
@@ -592,9 +615,9 @@ function buildTwiML(spokenText, actionUrl, end = false) {
   <Gather input="speech" action="${actionUrl}" method="POST"
           speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
-    <Say voice="Polly.Joanna" language="en-AU">${safe}</Say>
+    <Say voice="${voice}" language="${lang}">${safe}</Say>
   </Gather>
-  <Say voice="Polly.Joanna" language="en-AU">Sorry, I didn't catch that. Let me try again.</Say>
+  <Say voice="${voice}" language="${lang}">Sorry, I didn't catch that. Let me try again.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`;
 }
@@ -631,10 +654,11 @@ app.post('/api/voice/incoming', (req, res) => {
     booking:    null,
   });
 
-  const greeting  = xmlEsc(promptSettings.voiceGreeting || "Sorry, all our humans are busy right now. Would you be up to booking your job in with me, Fiona?");
-  const actionUrl = `${BASE_URL}/api/voice/process`;
-  const model     = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
-  const enhanced  = bookingSettings.voiceEnhanced ? 'true' : 'false';
+  const greeting         = xmlEsc(promptSettings.voiceGreeting || "Sorry, all our humans are busy right now. Would you be up to booking your job in with me, Fiona?");
+  const actionUrl        = `${BASE_URL}/api/voice/process`;
+  const model            = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
+  const enhanced         = bookingSettings.voiceEnhanced ? 'true' : 'false';
+  const { voice, lang }  = getVoiceMeta();
 
   res.set('Content-Type', 'text/xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -642,9 +666,9 @@ app.post('/api/voice/incoming', (req, res) => {
   <Gather input="speech" action="${actionUrl}" method="POST"
           speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
-    <Say voice="Polly.Joanna" language="en-AU">${greeting}</Say>
+    <Say voice="${voice}" language="${lang}">${greeting}</Say>
   </Gather>
-  <Say voice="Polly.Joanna" language="en-AU">I didn't catch that. Let me try again.</Say>
+  <Say voice="${voice}" language="${lang}">I didn't catch that. Let me try again.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`);
 });
