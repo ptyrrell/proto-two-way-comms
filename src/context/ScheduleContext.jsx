@@ -25,6 +25,12 @@ export function ScheduleProvider({ children }) {
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const t = setInterval(reload, 30_000);
+    return () => clearInterval(t);
+  }, [reload]);
+
   const addJob = useCallback((job) => {
     // Optimistically add to local state immediately so the schedule updates at once
     setJobs(prev => [...prev.filter(j => j.id !== job.id), job]);
@@ -43,7 +49,7 @@ export function ScheduleProvider({ children }) {
   return (
     <ScheduleContext.Provider value={{
       jobs, techs, techSettings, bookingSettings,
-      loading, addJob, newJobId, refreshBookingSettings,
+      loading, addJob, newJobId, refreshBookingSettings, reload,
     }}>
       {children}
     </ScheduleContext.Provider>

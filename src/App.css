@@ -77,6 +77,20 @@ body {
 }
 .sched-chip.active-chip { background: rgba(79,122,255,0.15); color: var(--accent); border-color: var(--accent); }
 
+.sched-refresh-btn {
+  background: none; border: 1px solid var(--border);
+  color: var(--text-muted); border-radius: 6px;
+  width: 26px; height: 26px; font-size: 15px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.sched-refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
+.sched-refresh-btn.spinning { animation: spin-once 0.6s ease-out; }
+@keyframes spin-once {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 .sched-legend { display: flex; align-items: center; gap: 5px; margin-left: 4px; }
 .legend-dot {
   width: 10px; height: 10px; border-radius: 50%;

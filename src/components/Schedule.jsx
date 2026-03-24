@@ -89,8 +89,15 @@ function JobBlock({ job, isNew }) {
 }
 
 export default function Schedule() {
-  const { jobs, techs, loading, newJobId } = useSchedule();
-  const [viewMode, setViewMode] = useState('internal'); // 'internal' | 'client'
+  const { jobs, techs, loading, newJobId, reload } = useSchedule();
+  const [viewMode,   setViewMode]   = useState('internal'); // 'internal' | 'client'
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    reload();
+    setTimeout(() => setRefreshing(false), 800);
+  };
   const dates = useMemo(() => getDates(), []);
 
   const hours  = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
@@ -136,6 +143,7 @@ export default function Schedule() {
             <>
               <span className="sched-chip">2 weeks</span>
               <span className="sched-chip active-chip">Technicians</span>
+              <button className={`sched-refresh-btn${refreshing ? ' spinning' : ''}`} onClick={handleRefresh} title="Refresh schedule">↻</button>
               <span className="sched-legend">
                 {Object.entries(TYPE_STYLE).filter(([k]) => k !== 'pending').map(([k, s]) => (
                   <span key={k} className="legend-dot" style={{ background: s.border }} title={k} />
