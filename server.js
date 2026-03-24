@@ -220,37 +220,46 @@ function buildSystem(channel) {
 
   let jobTypeSection = '';
 
+  // ── Routing decision rule (always shown) ──
+  jobTypeSection += `
+BOOKING TYPE DECISION — follow this every time:
+- Customer describes a fault, problem, not working, breakdown, or repair → book a SERVICE CALL (not a quote)
+- Customer asks for urgent help or "someone out today" → book a SERVICE CALL with urgency noted
+- Customer explicitly asks for a quote, OR describes new installation / major new works → only then use QUOTE flow
+- Default to SERVICE CALL. Never suggest or offer a quote unless the customer explicitly requests one.
+`;
+
   if (standardTypes.length) {
     jobTypeSection += `
-[STANDARD BOOKING — ${standardTypes.join(' / ')}]
-1. Ask what type of service is needed
-2. Collect service address — when you ask for address, include [NEEDS_ADDRESS] in your message
-3. Ask: for HVAC or equipment jobs, "Are you able to identify the unit type and its location? (e.g. rooftop, ceiling cassette, split system, plant room)" — skip for simple plumbing/electrical
+[SERVICE CALL — ${standardTypes.join(' / ')}]
+1. Identify the type of service needed (HVAC, Electrical, Plumbing, or General)
+2. For HVAC or equipment jobs ask: "Are you able to identify the unit type and its location? (e.g. rooftop, ceiling cassette, split system, plant room)" — skip for simple plumbing/electrical
+3. Collect service address — when you ask for address, include [NEEDS_ADDRESS] in your message
 4. Suggest 2–3 available time slots (dates and times only, no technician names)
 5. Confirm all booking details before finalising`;
-  }
-
-  if (hasQuote) {
-    jobTypeSection += `
-
-[QUOTE REQUEST]
-1. Acknowledge warmly — a Quote means we'll need to come and assess first
-2. Ask the customer to describe the work required in as much detail as possible
-3. Ask: "Are you able to identify the unit type and its location?" (if equipment-related)
-4. Collect service address — when you ask for address, include [NEEDS_ADDRESS] in your message
-5. Do NOT offer a time slot — instead say: "Our team will review the details and call you back to arrange a convenient time to come out."
-6. Confirm contact details, then output the QUOTE JSON below`;
   }
 
   if (hasBreakdown) {
     jobTypeSection += `
 
-[SERVICE / BREAKDOWN — emergency reactive]
-1. Acknowledge urgency with empathy: "I'm sorry to hear that, let's get someone out to you as soon as possible."
-2. Ask: "Are you able to identify the unit type and its location? (e.g. rooftop unit, split system, switchboard)" 
+[SERVICE / BREAKDOWN — urgent reactive]
+1. Acknowledge urgency: "I'm sorry to hear that — let's get someone out to you as soon as possible."
+2. Ask: "Are you able to identify the unit type and its location? (e.g. rooftop unit, split system, switchboard)"
 3. Collect service address — include [NEEDS_ADDRESS] in the message where you ask
 4. Offer the earliest 2–3 available time slots
 5. Confirm all details and note urgency`;
+  }
+
+  if (hasQuote) {
+    jobTypeSection += `
+
+[QUOTE — only when customer explicitly asks for a quote or describes new installation / major new works]
+1. Acknowledge: "Absolutely — for that scope of work we'd need to come and assess first."
+2. Ask the customer to describe the work required in as much detail as possible
+3. Ask: "Are you able to identify the unit type and its location?" (if equipment-related)
+4. Collect service address — include [NEEDS_ADDRESS] in the message where you ask
+5. Do NOT offer a time slot — say: "Our team will review the details and call you back to arrange a convenient time to come out."
+6. Confirm contact details, then output the QUOTE JSON below`;
   }
 
   // ── Contact collection ──
