@@ -66,7 +66,7 @@ let promptSettings = {
   personaName:           'Fiona',
   companyName:           'FieldInsight',
   greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you.",
-  voiceGreeting:         "Sorry, all our humans are busy right now. Would you be up to booking your job in with me, Fiona?",
+  voiceGreeting:         "Sorry, all our humans are busy right now. Would you be up to booking a job with us today?",
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
@@ -213,7 +213,12 @@ function buildSystem(channel) {
     sms:   'SMS — brief, plain text, under 160 chars per reply when possible',
     email: `email — professional and friendly, greet by name once known, sign off as "${companyName} Team"`,
     voip:  `phone call — natural spoken language, no markdown, short sentences, no lists.
-VOICE-SPECIFIC FLOW: The opening greeting asks if the caller is happy to book with you. If they say YES, sure, okay, go ahead, or any affirmative — respond with exactly: "Wonderful! Please just go ahead and give me all the details you have in one go — describe the problem, your name, address, contact email and phone number, and I'll get that sorted for you." Then wait for them to provide everything. If they say NO or want a human, respond with: "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling FieldInsight, goodbye!" and end the call.
+VOICE-SPECIFIC FLOW — follow these stages in order:
+STAGE 1 — Opening: The greeting has already asked if the caller is happy to book.
+  If they say YES, sure, okay, go ahead, or any affirmative: respond with exactly "Wonderful! Could you please confirm your name and address for me?" Then wait. Give them plenty of time to finish speaking before moving on.
+  If they say NO or want a human: respond with "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling, goodbye!" and end the call.
+STAGE 2 — After you have their name and address: acknowledge warmly, then ask "Thanks for that! And what's the reason for your call today?" Wait for their full response before continuing.
+STAGE 3 — Once you understand the reason: follow the standard SERVICE CALL or QUOTE flow to collect remaining details and offer available times.
 VOICE — MISHEARING RULE: If you did not clearly hear a number (phone, mobile) or email address, respond only with a short natural retry like "Sorry, could you say that again?" or "I didn't quite catch that one." Never explain what a phone number or email address looks like. Never describe expected formats or digit counts. Just ask them to repeat it.`,
   }[channel] || 'conversational';
 
@@ -671,11 +676,11 @@ app.post('/api/voice/incoming', (req, res) => {
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST"
-          speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
+          timeout="12" speechTimeout="3" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
     <Say voice="${voice}" language="${lang}">${greeting}</Say>
   </Gather>
-  <Say voice="${voice}" language="${lang}">I didn't catch that. Let me try again.</Say>
+  <Say voice="${voice}" language="${lang}">I didn't quite catch that. Please go ahead whenever you're ready.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`);
 });
