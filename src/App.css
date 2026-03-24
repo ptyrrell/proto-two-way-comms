@@ -1447,3 +1447,303 @@ body {
   flex-direction: column; align-items: stretch;
 }
 .br-row-col .br-control { width: 100%; }
+
+/* ═══════════════════════════════════════════════════════════════
+   FORM CHANNEL — booking wizard
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Landing ─────────────────────────────────────────────────── */
+.fw-landing {
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px 16px;
+}
+.fw-landing-inner {
+  max-width: 420px; width: 100%; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.fw-landing-icon { font-size: 52px; line-height: 1; }
+.fw-landing-title { font-size: 22px; font-weight: 700; color: var(--text); }
+.fw-landing-sub { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+.fw-landing-steps {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin: 4px 0;
+}
+.fw-landing-step {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface2); border-radius: 20px;
+  padding: 5px 12px; font-size: 12px; color: var(--text-muted);
+}
+.fw-landing-step-num {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.fw-start-btn {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 10px;
+  padding: 13px 32px; font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s, transform 0.12s;
+  margin-top: 4px;
+}
+.fw-start-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+.fw-landing-chat-hint { font-size: 11px; color: var(--text-muted); }
+
+/* ── Wizard shell ─────────────────────────────────────────────── */
+.fw-wizard {
+  display: flex; flex-direction: column; height: 100%; overflow: hidden;
+}
+
+/* ── Header / step bar ───────────────────────────────────────── */
+.fw-header {
+  padding: 12px 16px 10px; border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+}
+.fw-header-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.fw-back-link {
+  background: none; border: none; color: var(--accent);
+  font-size: 13px; cursor: pointer; padding: 0;
+}
+.fw-back-link:hover { text-decoration: underline; }
+.fw-step-label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+.fw-stepbar {
+  display: flex; align-items: center; gap: 0;
+  position: relative; padding: 0 4px;
+}
+.fw-stepline {
+  position: absolute; left: 20px; top: 50%; transform: translateY(-50%);
+  height: 2px; background: var(--accent); transition: width 0.3s ease;
+  z-index: 0;
+}
+.fw-stepdot {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid var(--border); background: var(--surface2);
+  color: var(--text-muted); font-size: 11px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1; position: relative; flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  margin-right: auto;
+}
+.fw-stepdot:last-child { margin-right: 0; }
+.fw-stepdot.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.fw-stepdot.done   { background: var(--accent); border-color: var(--accent); color: #fff; font-size: 12px; }
+
+/* ── Body (scrollable step content) ─────────────────────────── */
+.fw-body {
+  flex: 1; overflow-y: auto; padding: 16px;
+}
+.fw-step-wrap { display: flex; flex-direction: column; gap: 14px; }
+.fw-step-title { font-size: 17px; font-weight: 700; color: var(--text); }
+.fw-step-sub   { font-size: 12px; color: var(--text-muted); margin-top: -8px; }
+
+/* ── Field rows ──────────────────────────────────────────────── */
+.fw-field-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+@media (max-width: 460px) { .fw-field-row { grid-template-columns: 1fr; } }
+
+.fw-field { display: flex; flex-direction: column; gap: 4px; }
+.fw-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.fw-req  { color: var(--accent); }
+.fw-opt  { font-weight: 400; opacity: 0.7; }
+.fw-input {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 9px 11px;
+  font-size: 13px; outline: none; transition: border-color 0.15s;
+}
+.fw-input:focus   { border-color: var(--accent); }
+.fw-input.err     { border-color: #e55; }
+.fw-textarea {
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 9px 11px;
+  font-size: 13px; font-family: inherit; line-height: 1.5;
+  resize: vertical; outline: none; transition: border-color 0.15s;
+  width: 100%;
+}
+.fw-textarea:focus { border-color: var(--accent); }
+.fw-err { font-size: 11px; color: #e55; margin-top: 2px; }
+
+/* ── Job type grid ───────────────────────────────────────────── */
+.fw-jobtype-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 8px;
+}
+.fw-jt-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--surface2); border: 2px solid var(--border);
+  border-radius: 10px; padding: 12px 10px; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: center;
+}
+.fw-jt-card:hover   { border-color: var(--accent); background: var(--surface3, var(--surface2)); }
+.fw-jt-card.active  { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+.fw-jt-icon  { font-size: 24px; }
+.fw-jt-label { font-size: 12px; font-weight: 600; color: var(--text); }
+.fw-jt-desc  { font-size: 10px; color: var(--text-muted); line-height: 1.3; }
+
+/* ── Urgency ─────────────────────────────────────────────────── */
+.fw-urgency-row { margin-top: 4px; }
+.fw-field-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.fw-urgency-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.fw-urgency-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  background: var(--surface2); border: 2px solid var(--border);
+  border-radius: 8px; padding: 9px 14px; cursor: pointer; flex: 1; min-width: 90px;
+  transition: border-color 0.15s;
+}
+.fw-urgency-btn:hover  { border-color: var(--accent); }
+.fw-urgency-btn.active { border-color: var(--accent); background: rgba(99,102,241,0.08); }
+.fw-urgency-btn span:first-child { font-size: 12px; font-weight: 600; color: var(--text); }
+.fw-urgency-desc { font-size: 10px; color: var(--text-muted); }
+
+/* ── Address step ────────────────────────────────────────────── */
+.fw-address-wrap { display: flex; flex-direction: column; gap: 10px; }
+.fw-address-confirmed {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--text);
+}
+.fw-address-tick  { color: #22c55e; font-weight: 700; }
+.fw-address-clear {
+  margin-left: auto; background: none; border: none;
+  color: var(--text-muted); cursor: pointer; font-size: 14px;
+  padding: 0 2px;
+}
+.fw-address-clear:hover { color: #e55; }
+
+/* ── Slot picker ─────────────────────────────────────────────── */
+.fw-slot-loading, .fw-slot-empty {
+  color: var(--text-muted); font-size: 13px; padding: 20px; text-align: center;
+}
+.fw-slot-grid { display: flex; flex-direction: column; gap: 14px; }
+.fw-slot-day  { }
+.fw-slot-day-label {
+  font-size: 12px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.fw-slot-times { display: flex; gap: 6px; flex-wrap: wrap; }
+.fw-slot-btn {
+  background: var(--surface2); border: 1.5px solid var(--border);
+  color: var(--text); border-radius: 7px; padding: 6px 13px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.fw-slot-btn:hover  { border-color: var(--accent); }
+.fw-slot-btn.active { border-color: var(--accent); background: rgba(99,102,241,0.12); font-weight: 700; }
+
+.fw-slot-selected {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 8px; font-size: 13px; color: var(--text); font-weight: 500;
+}
+
+/* ── Quote summary ───────────────────────────────────────────── */
+.fw-summary {
+  background: var(--surface2); border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border);
+}
+.fw-summary-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 14px; border-bottom: 1px solid var(--border);
+}
+.fw-summary-row:last-child { border-bottom: none; }
+.fw-summary-row span { width: 76px; font-size: 11px; color: var(--text-muted); flex-shrink: 0; padding-top: 2px; }
+.fw-summary-row strong { font-size: 13px; color: var(--text); font-weight: 500; line-height: 1.4; }
+
+/* ── Footer / nav buttons ─────────────────────────────────────── */
+.fw-footer {
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  flex-shrink: 0; background: var(--surface);
+}
+.fw-next-btn {
+  width: 100%; background: var(--accent); color: #fff;
+  border: none; border-radius: 9px; padding: 13px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: opacity 0.15s, transform 0.12s;
+}
+.fw-next-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.fw-next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Ask Fiona panel ─────────────────────────────────────────── */
+.fw-ask-panel {
+  border-top: 1px solid var(--border); flex-shrink: 0;
+  background: var(--surface);
+}
+.fw-ask-toggle {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: none; border: none; padding: 10px 16px;
+  color: var(--text-muted); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: color 0.15s;
+}
+.fw-ask-toggle:hover { color: var(--text); }
+.fw-ask-chevron { font-size: 14px; }
+
+.fw-ask-body {
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--border); max-height: 240px;
+}
+.fw-ask-msgs {
+  flex: 1; overflow-y: auto; padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.fw-ask-msg {
+  display: flex; flex-direction: column; gap: 1px;
+  max-width: 88%;
+}
+.fw-ask-msg.assistant { align-self: flex-start; }
+.fw-ask-msg.user      { align-self: flex-end; }
+.fw-ask-speaker { font-size: 10px; color: var(--text-muted); font-weight: 600; }
+.fw-ask-text {
+  background: var(--surface2); border-radius: 8px;
+  padding: 7px 10px; font-size: 12px; color: var(--text); line-height: 1.4;
+}
+.fw-ask-msg.user .fw-ask-text {
+  background: var(--accent); color: #fff;
+}
+.fw-ask-text.typing {
+  display: flex; gap: 4px; align-items: center; padding: 10px 12px;
+}
+.fw-ask-text.typing span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--text-muted); animation: dot-bounce 1.2s infinite;
+  display: block;
+}
+.fw-ask-text.typing span:nth-child(2) { animation-delay: 0.2s; }
+.fw-ask-text.typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-5px); }
+}
+
+.fw-ask-input-row {
+  display: flex; gap: 6px; padding: 8px 12px;
+  border-top: 1px solid var(--border);
+}
+.fw-ask-input {
+  flex: 1; background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 7px; padding: 7px 10px;
+  font-size: 12px; outline: none;
+}
+.fw-ask-input:focus { border-color: var(--accent); }
+.fw-ask-send {
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 7px; padding: 7px 13px; font-size: 14px;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.fw-ask-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Confirmed phase ─────────────────────────────────────────── */
+.fw-confirmed { overflow: hidden; }
+.fw-confirmed-scroll { overflow-y: auto; height: 100%; padding: 16px; }
+.fw-restart-btn {
+  margin-top: 16px; width: 100%;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text-muted); border-radius: 9px;
+  padding: 11px; font-size: 13px; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.fw-restart-btn:hover { border-color: var(--accent); color: var(--text); }
