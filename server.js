@@ -55,7 +55,7 @@ let bookingSettings = {
   // Job duration
   defaultJobDuration: 1,        // default job length in hours (60 min)
   // VOIP / IVR settings
-  voiceModel:       'Polly.Olivia',         // TTS voice (Amazon Polly via Twilio)
+  voiceModel:       'Polly.Joanna',         // TTS voice (Amazon Polly via Twilio)
   voiceSpeechModel: 'numbers_and_commands', // STT model
   voiceEnhanced:    true,       // Twilio enhanced STT model (higher accuracy, extra cost)
   voiceMaxTurns:    20,         // maximum conversation turns before graceful exit
