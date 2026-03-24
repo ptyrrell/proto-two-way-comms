@@ -62,7 +62,7 @@ let bookingSettings = {
 let promptSettings = {
   personaName:           'Fiona',
   companyName:           'FieldInsight',
-  greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today?",
+  greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you.",
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
@@ -516,7 +516,7 @@ app.post('/api/voice/incoming', (req, res) => {
     booking:    null,
   });
 
-  const greeting  = xmlEsc(promptSettings.greeting || "Hi! I'm Fiona from FieldInsight. How can I help you today?");
+  const greeting  = xmlEsc(promptSettings.greeting || "Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you.");
   const actionUrl = `${BASE_URL}/api/voice/process`;
   const model     = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
   const enhanced  = bookingSettings.voiceEnhanced ? 'true' : 'false';

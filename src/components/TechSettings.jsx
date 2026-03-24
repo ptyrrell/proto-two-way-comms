@@ -41,7 +41,7 @@ const ALL_JOB_TYPES = [
 const DEFAULT_PROMPT = {
   personaName:           'Fiona',
   companyName:           'FieldInsight',
-  greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today?",
+  greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you.",
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
@@ -457,7 +457,7 @@ export default function TechSettings({ onClose }) {
               rows={2}
               onChange={e => setPromptSettings(p => ({ ...p, greeting: e.target.value }))}
               onBlur={e => savePrompt({ greeting: e.target.value })}
-              placeholder="Hi! I'm Fiona from FieldInsight…"
+              placeholder="Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you."
             />
           </div>
 
