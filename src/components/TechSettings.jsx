@@ -54,16 +54,17 @@ export default function TechSettings({ onClose }) {
   const { refreshBookingSettings } = useSchedule();
   const [techSettings,    setTechSettings]    = useState({});
   const [bookingSettings, setBookingSettings] = useState({
-    bufferHours:      4,
-    workingDays:      [1,2,3,4,5],
-    startHour:        8,
-    endHour:          17,
-    lunchEnabled:     true,
-    lunchStart:       12,
-    lunchEnd:         13,
-    voiceSpeechModel: 'numbers_and_commands',
-    voiceEnhanced:    true,
-    voiceMaxTurns:    20,
+    defaultJobDuration: 1,
+    bufferHours:        4,
+    workingDays:        [1,2,3,4,5],
+    startHour:          8,
+    endHour:            17,
+    lunchEnabled:       true,
+    lunchStart:         12,
+    lunchEnd:           13,
+    voiceSpeechModel:   'numbers_and_commands',
+    voiceEnhanced:      true,
+    voiceMaxTurns:      20,
   });
   const [promptSettings,  setPromptSettings]  = useState(DEFAULT_PROMPT);
   const [promptPreview,   setPromptPreview]   = useState('');
@@ -214,6 +215,29 @@ export default function TechSettings({ onClose }) {
         </div>
 
         <div className="booking-rules">
+
+          {/* Default job duration */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Default Job Duration</div>
+              <div className="br-desc">Standard job length — used for conflict checking and slot availability</div>
+            </div>
+            <div className="br-control">
+              <div className="br-stepper">
+                <button
+                  className="br-step-btn"
+                  onClick={() => saveBooking({ defaultJobDuration: Math.max(1, (bookingSettings.defaultJobDuration || 1) - 1) })}
+                >−</button>
+                <span className="br-value">
+                  {(bookingSettings.defaultJobDuration || 1) === 1 ? '60 min' : `${bookingSettings.defaultJobDuration}h`}
+                </span>
+                <button
+                  className="br-step-btn"
+                  onClick={() => saveBooking({ defaultJobDuration: Math.min(8, (bookingSettings.defaultJobDuration || 1) + 1) })}
+                >+</button>
+              </div>
+            </div>
+          </div>
 
           {/* Buffer hours */}
           <div className="br-row">

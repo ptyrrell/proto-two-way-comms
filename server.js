@@ -52,6 +52,8 @@ let bookingSettings = {
   lunchEnabled: true,           // block lunch period from self-booking
   lunchStart:   12,             // lunch break start (noon)
   lunchEnd:     13,             // lunch break end (1 PM)
+  // Job duration
+  defaultJobDuration: 1,        // default job length in hours (60 min)
   // VOIP / IVR settings
   voiceSpeechModel: 'numbers_and_commands', // best for phone numbers & digits
   voiceEnhanced:    true,       // Twilio enhanced STT model (higher accuracy, extra cost)
@@ -101,35 +103,74 @@ let jobs = [
 
 let nextId = 20;
 
+// ── Conflict check ─────────────────────────────────────────────────
+// Returns true if [newStart, newStart+newDur) overlaps any existing job
+// for a given tech on a given date.
+function hasConflict(tech, date, newStart, newDur) {
+  return jobs.some(j =>
+    j.tech === tech && j.date === date &&
+    newStart < j.startHour + j.duration &&
+    j.startHour < newStart + newDur
+  );
+}
+
+// ── Load-balanced tech assignment ───────────────────────────────────
+// Returns the active tech with the fewest total booked hours who is
+// also free for the requested slot. Falls back to first active tech.
+function assignTech(date, startHour, duration) {
+  const dur = duration || bookingSettings.defaultJobDuration || 1;
+  const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
+
+  // Sort by total booked hours ascending (load balance)
+  const sorted = [...activeTechs].sort((a, b) => {
+    const hrs = t => jobs.filter(j => j.tech === t).reduce((s, j) => s + (j.duration || 1), 0);
+    return hrs(a) - hrs(b);
+  });
+
+  // Pick first free tech for this specific slot
+  const free = sorted.find(t => !hasConflict(t, date, startHour, dur));
+  return free || sorted[0] || TECHS[0];
+}
+
+// ── Available slots for AI / client view ───────────────────────────
 function getAvailableSlots() {
   const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
   const bufferMs    = bookingSettings.bufferHours * 3600 * 1000;
+  const dur         = bookingSettings.defaultJobDuration || 1;
+  const { startHour, endHour, lunchEnabled, lunchStart, lunchEnd, workingDays } = bookingSettings;
   const slots = [];
 
   for (let day = 1; day <= 14; day++) {
-    const date = dateStr(day);
-    const d = new Date(date);
-    if (!bookingSettings.workingDays.includes(d.getDay())) continue;
+    const date  = dateStr(day);
+    const dObj  = new Date(date);
+    if (!workingDays.includes(dObj.getDay())) continue;
 
-    for (const tech of activeTechs) {
-      const busy = new Set();
-      jobs.filter(j => j.tech === tech && j.date === date)
-          .forEach(j => { for (let h = j.startHour; h < j.startHour + j.duration; h++) busy.add(h); });
+    // Sort techs by load so the AI naturally offers the least-busy technician
+    const sorted = [...activeTechs].sort((a, b) => {
+      const hrs = t => jobs.filter(j => j.tech === t).reduce((s, j) => s + (j.duration || 1), 0);
+      return hrs(a) - hrs(b);
+    });
 
-      const { startHour, endHour, lunchEnabled, lunchStart, lunchEnd } = bookingSettings;
-      for (let hour = startHour; hour <= endHour - 2; hour++) {
-        // Skip lunch hours
-        if (lunchEnabled && hour >= lunchStart && hour < lunchEnd) continue;
-
-        // Check buffer: slot must be at least bufferHours from now
+    for (const tech of sorted) {
+      for (let hour = startHour; hour + dur <= endHour; hour++) {
+        // Buffer check: slot must start at least bufferHours from now
         const slotTime = new Date(date);
         slotTime.setHours(hour, 0, 0, 0);
         if (slotTime.getTime() - Date.now() < bufferMs) continue;
 
-        if (!busy.has(hour) && !busy.has(hour + 1)) {
-          const label = new Date(date).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
-          slots.push({ tech, date, startHour: hour, label: `${tech} — ${label} at ${hour}:00–${hour+2}:00` });
-          break; // one slot per tech per day for brevity
+        // Lunch overlap: skip if any hour in [hour, hour+dur) touches lunch
+        if (lunchEnabled) {
+          const touchesLunch = Array.from({ length: dur }, (_, i) => hour + i)
+            .some(h => h >= lunchStart && h < lunchEnd);
+          if (touchesLunch) continue;
+        }
+
+        // Full conflict check for the entire job duration
+        if (!hasConflict(tech, date, hour, dur)) {
+          const label = dObj.toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' });
+          const endH  = hour + dur;
+          slots.push({ tech, date, startHour: hour, label: `${tech} — ${label} at ${hour}:00–${endH}:00` });
+          break; // one slot per tech per day
         }
       }
     }
@@ -260,10 +301,12 @@ AVAILABLE TIME SLOTS (next 2 weeks — times only, no names):
 ${slotList}
 ${techRouting}
 
+Default job duration: ${bookingSettings.defaultJobDuration || 1} hour(s) — use this value for the "duration" field in the BOOKING JSON below.
+
 OUTPUT FORMATS (output on its own line when confirmed, no surrounding text):
 
 Standard booking:
-BOOKING:{"tech":"NAME","customer":"NAME","type":"TYPE","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"YYYY-MM-DD","startHour":9,"duration":2,"amount":0,"status":"pending"}
+BOOKING:{"tech":"NAME","customer":"NAME","type":"TYPE","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"YYYY-MM-DD","startHour":9,"duration":${bookingSettings.defaultJobDuration || 1},"amount":0,"status":"pending"}
 
 Quote request:
 BOOKING:{"tech":"TBD","customer":"NAME","type":"Quote","address":"ADDR","mobile":"0400000000","email":"email@example.com","date":"TBD","startHour":0,"duration":0,"amount":0,"status":"quote-pending","description":"DESCRIPTION OF WORK"}
@@ -360,17 +403,19 @@ app.post('/api/validate-address', async (req, res) => {
 app.post('/api/settings/booking', (req, res) => {
   const { bufferHours, workingDays, startHour, endHour,
           lunchEnabled, lunchStart, lunchEnd,
+          defaultJobDuration,
           voiceSpeechModel, voiceEnhanced, voiceMaxTurns } = req.body;
-  if (bufferHours       !== undefined) bookingSettings.bufferHours       = Number(bufferHours);
-  if (workingDays       !== undefined) bookingSettings.workingDays       = workingDays;
-  if (startHour         !== undefined) bookingSettings.startHour         = Number(startHour);
-  if (endHour           !== undefined) bookingSettings.endHour           = Number(endHour);
-  if (lunchEnabled      !== undefined) bookingSettings.lunchEnabled      = Boolean(lunchEnabled);
-  if (lunchStart        !== undefined) bookingSettings.lunchStart        = Number(lunchStart);
-  if (lunchEnd          !== undefined) bookingSettings.lunchEnd          = Number(lunchEnd);
-  if (voiceSpeechModel  !== undefined) bookingSettings.voiceSpeechModel  = voiceSpeechModel;
-  if (voiceEnhanced     !== undefined) bookingSettings.voiceEnhanced     = Boolean(voiceEnhanced);
-  if (voiceMaxTurns     !== undefined) bookingSettings.voiceMaxTurns     = Number(voiceMaxTurns);
+  if (bufferHours        !== undefined) bookingSettings.bufferHours        = Number(bufferHours);
+  if (workingDays        !== undefined) bookingSettings.workingDays        = workingDays;
+  if (startHour          !== undefined) bookingSettings.startHour          = Number(startHour);
+  if (endHour            !== undefined) bookingSettings.endHour            = Number(endHour);
+  if (lunchEnabled       !== undefined) bookingSettings.lunchEnabled       = Boolean(lunchEnabled);
+  if (lunchStart         !== undefined) bookingSettings.lunchStart         = Number(lunchStart);
+  if (lunchEnd           !== undefined) bookingSettings.lunchEnd           = Number(lunchEnd);
+  if (defaultJobDuration !== undefined) bookingSettings.defaultJobDuration = Number(defaultJobDuration);
+  if (voiceSpeechModel   !== undefined) bookingSettings.voiceSpeechModel   = voiceSpeechModel;
+  if (voiceEnhanced      !== undefined) bookingSettings.voiceEnhanced      = Boolean(voiceEnhanced);
+  if (voiceMaxTurns      !== undefined) bookingSettings.voiceMaxTurns      = Number(voiceMaxTurns);
   console.log('Booking settings updated:', bookingSettings);
   res.json({ ok: true, bookingSettings });
 });
@@ -414,22 +459,13 @@ app.post('/api/chat', async (req, res) => {
         booking.textColor = meta.text;
         booking.bgColor = meta.color;
 
-        // Normalise tech name — find case-insensitive match against known techs
-        const normTech = TECHS.find(t => t.toLowerCase() === (booking.tech || '').toLowerCase());
-        if (normTech) {
-          booking.tech = normTech;
-        } else if (booking.tech === 'TBD' || !normTech) {
-          // Assign a free tech for the slot, or fall back to first active tech
-          const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
-          const sh = booking.startHour;
-          const free = activeTechs.find(t =>
-            !jobs.some(j => j.tech === t && j.date === booking.date && j.startHour <= sh && sh < j.startHour + j.duration)
-          );
-          booking.tech = free || activeTechs[0] || TECHS[0];
-        }
+        // Always use server-side load-balanced assignment (ignore Claude's suggestion)
+        const dur = bookingSettings.defaultJobDuration || 1;
+        booking.duration = dur;
+        booking.tech = assignTech(booking.date, booking.startHour, dur);
 
         jobs.push(booking);
-        console.log(`✅ Chat booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech}`);
+        console.log(`✅ Chat booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech} dur: ${dur}h`);
       } catch (e) { console.error('Booking parse error', e); }
     }
 
@@ -608,22 +644,14 @@ app.post('/api/voice/process', async (req, res) => {
         booking.textColor = meta.text;
         booking.bgColor   = meta.color;
 
-        // Normalise / validate tech assignment
-        const normTech = TECHS.find(t => t.toLowerCase() === (booking.tech || '').toLowerCase());
-        if (normTech) {
-          booking.tech = normTech;
-        } else {
-          const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
-          const sh = booking.startHour;
-          const free = activeTechs.find(t =>
-            !jobs.some(j => j.tech === t && j.date === booking.date && j.startHour <= sh && sh < j.startHour + j.duration)
-          );
-          booking.tech = free || activeTechs[0] || TECHS[0];
-        }
+        // Always use server-side load-balanced assignment
+        const dur = bookingSettings.defaultJobDuration || 1;
+        booking.duration = dur;
+        booking.tech = assignTech(booking.date, booking.startHour, dur);
 
         jobs.push(booking);
         session.booking = booking;
-        console.log(`✅ Voice booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech}`);
+        console.log(`✅ Voice booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech} dur: ${dur}h`);
       } catch (e) { console.error('Voice booking parse error', e); }
     }
 
@@ -724,28 +752,25 @@ app.post('/api/form/book', (req, res) => {
     return res.status(400).json({ ok: false, error: 'Missing required fields: name, mobile, jobType, address' });
   }
 
-  // Assign a free tech for this slot
-  const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
-  let tech = 'TBD';
-  if (date && startHour != null && jobType !== 'Quote') {
-    const sh = Number(startHour);
-    const free = activeTechs.find(t =>
-      !jobs.some(j => j.tech === t && j.date === date && j.startHour <= sh && sh < j.startHour + j.duration)
-    );
-    if (free) tech = free;
-  }
-
-  const meta   = TYPE_META[jobType] || TYPE_META.General;
+  const dur     = bookingSettings.defaultJobDuration || 1;
   const isQuote = jobType === 'Quote';
+  const sh      = startHour != null ? Number(startHour) : 0;
+
+  // Load-balanced tech assignment with full conflict check
+  const tech = (date && !isQuote)
+    ? assignTech(date, sh, dur)
+    : 'TBD';
+
+  const meta = TYPE_META[jobType] || TYPE_META.General;
   const job = {
     id:        `J-${++nextId}`,
     tech,
     customer:  business ? `${name} (${business})` : name,
     type:      jobType,
     address,
-    date:      date      || 'TBD',
-    startHour: startHour != null ? Number(startHour) : 0,
-    duration:  2,
+    date:      date || 'TBD',
+    startHour: sh,
+    duration:  dur,
     amount:    0,
     mobile,
     email:     email || '',
@@ -758,7 +783,7 @@ app.post('/api/form/book', (req, res) => {
     sourceChannel: 'form',
   };
   jobs.push(job);
-  console.log(`📋 Form booking: ${job.id} — ${job.customer} (${job.type})`);
+  console.log(`📋 Form booking: ${job.id} — ${job.customer} → tech: ${tech} dur: ${dur}h`);
   res.json({ ok: true, booking: job });
 });
 
