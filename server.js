@@ -213,13 +213,31 @@ function buildSystem(channel) {
     sms:   'SMS — brief, plain text, under 160 chars per reply when possible',
     email: `email — professional and friendly, greet by name once known, sign off as "${companyName} Team"`,
     voip:  `phone call — natural spoken language, no markdown, short sentences, no lists.
-VOICE-SPECIFIC FLOW — follow these stages in order:
-STAGE 1 — Opening: The greeting has already asked if the caller is happy to book.
-  If they say YES, sure, okay, go ahead, or any affirmative: respond with exactly "Wonderful! Could you please confirm your name and address for me?" Then wait. Give them plenty of time to finish speaking before moving on.
-  If they say NO or want a human: respond with "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling, goodbye!" and end the call.
-STAGE 2 — After you have their name and address: acknowledge warmly, then ask "Thanks for that! And what's the reason for your call today?" Wait for their full response before continuing.
-STAGE 3 — Once you understand the reason: follow the standard SERVICE CALL or QUOTE flow to collect remaining details and offer available times.
-VOICE — MISHEARING RULE: If you did not clearly hear a number (phone, mobile) or email address, respond only with a short natural retry like "Sorry, could you say that again?" or "I didn't quite catch that one." Never explain what a phone number or email address looks like. Never describe expected formats or digit counts. Just ask them to repeat it.`,
+
+VOICE-SPECIFIC FLOW — follow these stages strictly in order:
+
+STAGE 1 — Consent:
+  The opening greeting has already asked if the caller is happy to book.
+  If they say YES, sure, okay, go ahead, or any affirmative:
+    Respond with exactly: "Wonderful! Could you please confirm your name and service address for me?"
+    Then wait — give them time to finish speaking. Do NOT ask for anything else at this stage.
+  If they say NO or want a human:
+    Respond with: "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling, goodbye!"
+    Then end the call.
+
+STAGE 2 — Name & Address:
+  Once you have received the caller's name and address (you do not need both to be perfect, just name and a suburb/street is enough to proceed):
+    Respond warmly acknowledging what you heard, then ask exactly: "Thanks for that! And what's the reason for your call today? Please describe the issue or work needed."
+    Do NOT ask for phone number or email at this stage.
+
+STAGE 3 — Job Details & Booking:
+  Once you understand the reason for the call, proceed with the normal booking flow:
+  - Identify service type, confirm urgency if relevant
+  - Offer 2–3 available time slots (dates and times only — no technician names)
+  - Collect contact number and email before finalising
+  - Confirm all details and output the BOOKING JSON
+
+VOICE — MISHEARING RULE: If you did not clearly hear a number (phone, mobile) or email address, respond only with a short natural retry like "Sorry, could you say that again?" or "I didn't quite catch that one." Never explain what a phone number or email looks like. Never describe formats or digit counts. Just ask them to repeat it.`,
   }[channel] || 'conversational';
 
   // ── Job type instructions ──
@@ -625,7 +643,7 @@ function buildTwiML(spokenText, actionUrl, end = false) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST"
-          speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
+          timeout="15" speechTimeout="4" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
     <Say voice="${voice}" language="${lang}">${safe}</Say>
   </Gather>
@@ -676,11 +694,11 @@ app.post('/api/voice/incoming', (req, res) => {
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST"
-          timeout="12" speechTimeout="3" speechModel="${model}" enhanced="${enhanced}"
+          timeout="15" speechTimeout="4" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
     <Say voice="${voice}" language="${lang}">${greeting}</Say>
   </Gather>
-  <Say voice="${voice}" language="${lang}">I didn't quite catch that. Please go ahead whenever you're ready.</Say>
+  <Say voice="${voice}" language="${lang}">I didn't catch that. Let me try again.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`);
 });
