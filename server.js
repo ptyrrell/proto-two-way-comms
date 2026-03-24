@@ -65,6 +65,7 @@ let promptSettings = {
   personaName:           'Fiona',
   companyName:           'FieldInsight',
   greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you.",
+  voiceGreeting:         "Sorry, all our humans are busy right now. Would you be up to booking your job in with me, Fiona?",
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
@@ -209,7 +210,8 @@ function buildSystem(channel) {
     web:   'conversational web chat — warm, friendly, short paragraphs',
     sms:   'SMS — brief, plain text, under 160 chars per reply when possible',
     email: `email — professional and friendly, greet by name once known, sign off as "${companyName} Team"`,
-    voip:  'phone call — natural spoken language, no markdown, short sentences, no lists',
+    voip:  `phone call — natural spoken language, no markdown, short sentences, no lists.
+VOICE-SPECIFIC FLOW: The opening greeting asks if the caller is happy to book with you. If they say YES, sure, okay, go ahead, or any affirmative — respond with exactly: "Wonderful! Please just go ahead and give me all the details you have in one go — describe the problem, your name, address, contact email and phone number, and I'll get that sorted for you." Then wait for them to provide everything. If they say NO or want a human, respond with: "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling FieldInsight, goodbye!" and end the call.`,
   }[channel] || 'conversational';
 
   // ── Job type instructions ──
@@ -367,7 +369,7 @@ app.get('/api/settings/prompt', (_req, res) => {
 });
 
 app.post('/api/settings/prompt', (req, res) => {
-  const allowed = ['personaName','companyName','greeting','showTechNames','collectContactDetails','enabledJobTypes','requiredFields','customInstructions','customFullPrompt'];
+  const allowed = ['personaName','companyName','greeting','voiceGreeting','showTechNames','collectContactDetails','enabledJobTypes','requiredFields','customInstructions','customFullPrompt'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) promptSettings[key] = req.body[key];
   }
@@ -629,7 +631,7 @@ app.post('/api/voice/incoming', (req, res) => {
     booking:    null,
   });
 
-  const greeting  = xmlEsc(promptSettings.greeting || "Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you.");
+  const greeting  = xmlEsc(promptSettings.voiceGreeting || "Sorry, all our humans are busy right now. Would you be up to booking your job in with me, Fiona?");
   const actionUrl = `${BASE_URL}/api/voice/process`;
   const model     = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
   const enhanced  = bookingSettings.voiceEnhanced ? 'true' : 'false';
@@ -724,6 +726,33 @@ app.post('/api/voice/process', async (req, res) => {
         jobs.push(booking);
         session.booking = booking;
         console.log(`✅ Voice booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech} dur: ${dur}h`);
+
+        // Send SMS confirmation to the caller
+        if (twilioClient && session.from && session.from !== 'unknown') {
+          const fmtHr = h => h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h-12}pm`;
+          const dateFmt = booking.date !== 'TBD'
+            ? new Date(booking.date).toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' })
+            : 'TBD';
+          const timeFmt = booking.startHour ? `${fmtHr(booking.startHour)}–${fmtHr(booking.startHour + (booking.duration||1))}` : 'TBD';
+          const smsBody = [
+            `Hi ${booking.customer || 'there'} — your FieldInsight booking is confirmed! ✓`,
+            ``,
+            `📋 ${booking.type || 'Service Call'}`,
+            `📅 ${dateFmt} at ${timeFmt}`,
+            `📍 ${booking.address || 'Address on file'}`,
+            ``,
+            `We'll send a reminder before your appointment.`,
+            `Questions? Reply to this SMS or call us.`,
+            `— FieldInsight Team`,
+          ].join('\n');
+          twilioClient.messages.create({
+            to:   session.from,
+            from: process.env.TWILIO_FROM_NUMBER,
+            body: smsBody,
+          }).then(() => console.log(`📱 Confirmation SMS sent to ${session.from}`))
+            .catch(e  => console.error(`SMS error: ${e.message}`));
+        }
+
       } catch (e) { console.error('Voice booking parse error', e); }
     }
 

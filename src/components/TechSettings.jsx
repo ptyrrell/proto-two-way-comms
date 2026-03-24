@@ -42,6 +42,7 @@ const DEFAULT_PROMPT = {
   personaName:           'Fiona',
   companyName:           'FieldInsight',
   greeting:              "Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you.",
+  voiceGreeting:         "Sorry, all our humans are busy right now. Would you be up to booking your job in with me, Fiona?",
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
@@ -473,7 +474,7 @@ export default function TechSettings({ onClose }) {
           <div className="br-row br-row-col">
             <div className="br-label">
               <div className="br-title">Opening Greeting</div>
-              <div className="br-desc">First message sent to the customer on every channel</div>
+              <div className="br-desc">First message sent on Web, SMS and Email channels</div>
             </div>
             <textarea
               className="br-textarea"
@@ -482,6 +483,22 @@ export default function TechSettings({ onClose }) {
               onChange={e => setPromptSettings(p => ({ ...p, greeting: e.target.value }))}
               onBlur={e => savePrompt({ greeting: e.target.value })}
               placeholder="Hi! I'm Fiona from FieldInsight. How can I help you today? Please provide your name, address and details of your request. Thank you."
+            />
+          </div>
+
+          {/* Voice greeting */}
+          <div className="br-row br-row-col">
+            <div className="br-label">
+              <div className="br-title">📞 Voice / IVR Greeting</div>
+              <div className="br-desc">First thing Fiona says when someone calls. After this she waits for a yes/no before proceeding.</div>
+            </div>
+            <textarea
+              className="br-textarea"
+              value={promptSettings.voiceGreeting || ''}
+              rows={2}
+              onChange={e => setPromptSettings(p => ({ ...p, voiceGreeting: e.target.value }))}
+              onBlur={e => savePrompt({ voiceGreeting: e.target.value })}
+              placeholder="Sorry, all our humans are busy right now. Would you be up to booking your job in with me, Fiona?"
             />
           </div>
 
