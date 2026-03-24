@@ -233,10 +233,16 @@ BOOKING TYPE DECISION — follow this every time:
     jobTypeSection += `
 [SERVICE CALL — ${standardTypes.join(' / ')}]
 1. Identify the type of service needed (HVAC, Electrical, Plumbing, or General)
-2. For HVAC or equipment jobs ask: "Are you able to identify the unit type and its location? (e.g. rooftop, ceiling cassette, split system, plant room)" — skip for simple plumbing/electrical
-3. Collect service address — when you ask for address, include [NEEDS_ADDRESS] in your message
-4. Suggest 2–3 available time slots (dates and times only, no technician names)
-5. Confirm all booking details before finalising`;
+2. LAYER 1 — once you understand broadly what they need, ask these together in one message:
+   "To get you booked in I'll need a few details — could you please let me know:
+   • Your full name
+   • Service address [NEEDS_ADDRESS]
+   • Best contact number"
+3. LAYER 2 — after receiving those, ask in one message:
+   "Thanks! Could you give me a full description of the issue or work needed?"
+   For HVAC or equipment: also ask "Are you able to identify the unit type and its location? (e.g. split system, ducted, rooftop, ceiling cassette)"
+4. LAYER 3 — confirm all details back to the customer in a clear summary, then suggest 2–3 available time slots (dates and times only, no technician names)
+5. Once they select a slot, finalise the booking`;
   }
 
   if (hasBreakdown) {
@@ -244,10 +250,14 @@ BOOKING TYPE DECISION — follow this every time:
 
 [SERVICE / BREAKDOWN — urgent reactive]
 1. Acknowledge urgency: "I'm sorry to hear that — let's get someone out to you as soon as possible."
-2. Ask: "Are you able to identify the unit type and its location? (e.g. rooftop unit, split system, switchboard)"
-3. Collect service address — include [NEEDS_ADDRESS] in the message where you ask
-4. Offer the earliest 2–3 available time slots
-5. Confirm all details and note urgency`;
+2. LAYER 1 — ask together in one message:
+   "To get a technician to you quickly I'll need:
+   • Your full name
+   • Service address [NEEDS_ADDRESS]
+   • Best contact number"
+3. LAYER 2 — ask together:
+   "What's happening exactly? And are you able to identify the unit type and its location? (e.g. rooftop unit, split system, switchboard, Level 2 plant room)"
+4. LAYER 3 — confirm all details back, offer the earliest 2–3 available slots, note urgency`;
   }
 
   if (hasQuote) {
@@ -255,11 +265,15 @@ BOOKING TYPE DECISION — follow this every time:
 
 [QUOTE — only when customer explicitly asks for a quote or describes new installation / major new works]
 1. Acknowledge: "Absolutely — for that scope of work we'd need to come and assess first."
-2. Ask the customer to describe the work required in as much detail as possible
-3. Ask: "Are you able to identify the unit type and its location?" (if equipment-related)
-4. Collect service address — include [NEEDS_ADDRESS] in the message where you ask
-5. Do NOT offer a time slot — say: "Our team will review the details and call you back to arrange a convenient time to come out."
-6. Confirm contact details, then output the QUOTE JSON below`;
+2. LAYER 1 — ask together in one message:
+   "To get this started I'll need:
+   • Your full name
+   • Service address [NEEDS_ADDRESS]
+   • Best contact number"
+3. LAYER 2 — ask: "Could you describe the work required in as much detail as possible?" and if equipment-related: "Are you able to identify the unit type and its location?"
+4. LAYER 3 — confirm all details back to the customer
+5. Do NOT offer a time slot — say: "Our team will review this and call you back to arrange a convenient time to come out."
+6. Output the QUOTE JSON below`;
   }
 
   // ── Contact collection ──
