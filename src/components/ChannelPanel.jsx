@@ -3,9 +3,11 @@ import WebChat from './WebChat';
 import SmsChannel from './SmsChannel';
 import EmailChannel from './EmailChannel';
 import VoipChannel from './VoipChannel';
+import FormChannel from './FormChannel';
 import TechSettings from './TechSettings';
 
 const TABS = [
+  { id: 'form',  icon: '📋', label: 'Form' },
   { id: 'web',   icon: '💬', label: 'Web' },
   { id: 'sms',   icon: '📱', label: 'SMS' },
   { id: 'email', icon: '✉️', label: 'Email' },
@@ -50,6 +52,7 @@ export default function ChannelPanel() {
       </div>
 
       <div className="panel-body">
+        {active === 'form'  && <FormChannel key="form" />}
         {active === 'web'   && <WebChat key="web" />}
         {active === 'sms'   && <SmsChannel key="sms" />}
         {active === 'email' && <EmailChannel key="email" />}

@@ -54,13 +54,16 @@ export default function TechSettings({ onClose }) {
   const { refreshBookingSettings } = useSchedule();
   const [techSettings,    setTechSettings]    = useState({});
   const [bookingSettings, setBookingSettings] = useState({
-    bufferHours:  4,
-    workingDays:  [1,2,3,4,5],
-    startHour:    8,
-    endHour:      17,
-    lunchEnabled: true,
-    lunchStart:   12,
-    lunchEnd:     13,
+    bufferHours:      4,
+    workingDays:      [1,2,3,4,5],
+    startHour:        8,
+    endHour:          17,
+    lunchEnabled:     true,
+    lunchStart:       12,
+    lunchEnd:         13,
+    voiceSpeechModel: 'numbers_and_commands',
+    voiceEnhanced:    true,
+    voiceMaxTurns:    20,
   });
   const [promptSettings,  setPromptSettings]  = useState(DEFAULT_PROMPT);
   const [promptPreview,   setPromptPreview]   = useState('');
@@ -327,6 +330,74 @@ export default function TechSettings({ onClose }) {
                     <option key={h} value={h}>{fmtHour(h)}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* ─── VOIP / IVR SECTION ─────────────────────────── */}
+        <div className="settings-section-label" style={{ marginTop: '20px' }}>
+          <span>📞</span> VOIP / IVR Settings
+        </div>
+
+        <div className="booking-rules">
+
+          {/* Speech recognition model */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Speech Recognition Model</div>
+              <div className="br-desc">Which Twilio STT engine processes the caller's speech</div>
+            </div>
+            <div className="br-control">
+              <select
+                className="br-select"
+                value={bookingSettings.voiceSpeechModel || 'numbers_and_commands'}
+                onChange={e => saveBooking({ voiceSpeechModel: e.target.value })}
+                style={{ minWidth: 200 }}
+              >
+                <option value="numbers_and_commands">numbers_and_commands — best for digits &amp; phone numbers ★</option>
+                <option value="phone_call">phone_call — optimised for phone audio quality</option>
+                <option value="experimental_conversations">experimental_conversations — best for natural speech</option>
+                <option value="experimental_utterances">experimental_utterances — shorter phrases</option>
+                <option value="default">default — basic model</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Enhanced model toggle */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Enhanced Model</div>
+              <div className="br-desc">Higher accuracy STT (recommended — small Twilio cost premium)</div>
+            </div>
+            <div className="br-control">
+              <button
+                className={`toggle-btn${bookingSettings.voiceEnhanced ? ' on' : ' off'}`}
+                onClick={() => saveBooking({ voiceEnhanced: !bookingSettings.voiceEnhanced })}
+              >
+                <span className="toggle-thumb" />
+              </button>
+            </div>
+          </div>
+
+          {/* Max turns */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Max Conversation Turns</div>
+              <div className="br-desc">Call ends gracefully after this many exchanges (prevents runaway usage)</div>
+            </div>
+            <div className="br-control">
+              <div className="br-stepper">
+                <button
+                  className="br-step-btn"
+                  onClick={() => saveBooking({ voiceMaxTurns: Math.max(5, (bookingSettings.voiceMaxTurns || 20) - 5) })}
+                >−</button>
+                <span className="br-value">{bookingSettings.voiceMaxTurns || 20}</span>
+                <button
+                  className="br-step-btn"
+                  onClick={() => saveBooking({ voiceMaxTurns: Math.min(50, (bookingSettings.voiceMaxTurns || 20) + 5) })}
+                >+</button>
               </div>
             </div>
           </div>

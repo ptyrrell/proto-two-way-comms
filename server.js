@@ -52,6 +52,10 @@ let bookingSettings = {
   lunchEnabled: true,           // block lunch period from self-booking
   lunchStart:   12,             // lunch break start (noon)
   lunchEnd:     13,             // lunch break end (1 PM)
+  // VOIP / IVR settings
+  voiceSpeechModel: 'numbers_and_commands', // best for phone numbers & digits
+  voiceEnhanced:    true,       // Twilio enhanced STT model (higher accuracy, extra cost)
+  voiceMaxTurns:    20,         // maximum conversation turns before graceful exit
 };
 
 // AI persona & prompt settings
@@ -354,11 +358,19 @@ app.post('/api/validate-address', async (req, res) => {
 });
 
 app.post('/api/settings/booking', (req, res) => {
-  const { bufferHours, workingDays, startHour, endHour } = req.body;
-  if (bufferHours  !== undefined) bookingSettings.bufferHours  = Number(bufferHours);
-  if (workingDays  !== undefined) bookingSettings.workingDays  = workingDays;
-  if (startHour    !== undefined) bookingSettings.startHour    = Number(startHour);
-  if (endHour      !== undefined) bookingSettings.endHour      = Number(endHour);
+  const { bufferHours, workingDays, startHour, endHour,
+          lunchEnabled, lunchStart, lunchEnd,
+          voiceSpeechModel, voiceEnhanced, voiceMaxTurns } = req.body;
+  if (bufferHours       !== undefined) bookingSettings.bufferHours       = Number(bufferHours);
+  if (workingDays       !== undefined) bookingSettings.workingDays       = workingDays;
+  if (startHour         !== undefined) bookingSettings.startHour         = Number(startHour);
+  if (endHour           !== undefined) bookingSettings.endHour           = Number(endHour);
+  if (lunchEnabled      !== undefined) bookingSettings.lunchEnabled      = Boolean(lunchEnabled);
+  if (lunchStart        !== undefined) bookingSettings.lunchStart        = Number(lunchStart);
+  if (lunchEnd          !== undefined) bookingSettings.lunchEnd          = Number(lunchEnd);
+  if (voiceSpeechModel  !== undefined) bookingSettings.voiceSpeechModel  = voiceSpeechModel;
+  if (voiceEnhanced     !== undefined) bookingSettings.voiceEnhanced     = Boolean(voiceEnhanced);
+  if (voiceMaxTurns     !== undefined) bookingSettings.voiceMaxTurns     = Number(voiceMaxTurns);
   console.log('Booking settings updated:', bookingSettings);
   res.json({ ok: true, bookingSettings });
 });
@@ -436,8 +448,23 @@ function forVoice(text) {
     .trim();
 }
 
+// Hints that help STT recognise Australian phone numbers and common field-service terms
+const VOICE_HINTS = [
+  // digits spoken individually
+  'zero,one,two,three,four,five,six,seven,eight,nine',
+  // AU mobile prefixes
+  'oh four,zero four,04,041,042,043,044,045,046,047,048,049',
+  // common words
+  'HVAC,air conditioning,electrical,plumbing,booking,appointment,urgent,emergency,quote,service,breakdown',
+  // address terms
+  'street,road,avenue,drive,place,court,unit,level,floor',
+].join(',');
+
 function buildTwiML(spokenText, actionUrl, end = false) {
-  const safe = xmlEsc(spokenText);
+  const safe  = xmlEsc(spokenText);
+  const model = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
+  const enhanced = bookingSettings.voiceEnhanced ? 'true' : 'false';
+
   if (end) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -448,8 +475,8 @@ function buildTwiML(spokenText, actionUrl, end = false) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST"
-          speechTimeout="auto" speechModel="phone_call" language="en-AU"
-          hints="HVAC,air conditioning,electrical,plumbing,booking,appointment,urgent,emergency,quote,service">
+          speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
+          language="en-AU" hints="${VOICE_HINTS}">
     <Say voice="Polly.Joanna" language="en-AU">${safe}</Say>
   </Gather>
   <Say voice="Polly.Joanna" language="en-AU">Sorry, I didn't catch that. Let me try again.</Say>
@@ -489,15 +516,17 @@ app.post('/api/voice/incoming', (req, res) => {
     booking:    null,
   });
 
-  const greeting = xmlEsc(promptSettings.greeting || "Hi! I'm Fiona from FieldInsight. How can I help you today?");
+  const greeting  = xmlEsc(promptSettings.greeting || "Hi! I'm Fiona from FieldInsight. How can I help you today?");
   const actionUrl = `${BASE_URL}/api/voice/process`;
+  const model     = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
+  const enhanced  = bookingSettings.voiceEnhanced ? 'true' : 'false';
 
   res.set('Content-Type', 'text/xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST"
-          speechTimeout="auto" speechModel="phone_call" language="en-AU"
-          hints="HVAC,air conditioning,electrical,plumbing,booking,appointment,urgent,emergency,quote,service">
+          speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
+          language="en-AU" hints="${VOICE_HINTS}">
     <Say voice="Polly.Joanna" language="en-AU">${greeting}</Say>
   </Gather>
   <Say voice="Polly.Joanna" language="en-AU">I didn't catch that. Let me try again.</Say>
@@ -530,8 +559,9 @@ app.post('/api/voice/process', async (req, res) => {
     return res.send(buildTwiML("Sorry, I had trouble hearing that. Could you say it again?", actionUrl));
   }
 
-  // Max turns guard
-  if (session.turnCount >= 14) {
+  // Max turns guard (configurable via bookingSettings.voiceMaxTurns)
+  const maxTurns = bookingSettings.voiceMaxTurns || 20;
+  if (session.turnCount >= maxTurns) {
     session.status = 'ended';
     res.set('Content-Type', 'text/xml');
     return res.send(buildTwiML(
@@ -636,6 +666,70 @@ app.post('/api/voice/configure', async (_req, res) => {
     console.error('Voice configure error:', e.message);
     res.json({ ok: false, error: e.message });
   }
+});
+
+// ── Form booking: available slots (grouped by date) ────────────────
+app.get('/api/form/slots', (_req, res) => {
+  const raw = getAvailableSlots();
+  // Group into { date: [startHour, ...] }, deduped, sorted
+  const grouped = {};
+  raw.forEach(s => {
+    if (!grouped[s.date]) grouped[s.date] = new Set();
+    grouped[s.date].add(s.startHour);
+  });
+  const result = Object.entries(grouped)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([date, hourSet]) => ({
+      date,
+      label: new Date(date).toLocaleDateString('en-AU', { weekday:'short', day:'numeric', month:'short' }),
+      hours: [...hourSet].sort((a,b) => a-b),
+    }));
+  res.json({ slots: result });
+});
+
+// ── Form booking: direct booking creation ───────────────────────────
+app.post('/api/form/book', (req, res) => {
+  const { name, business, mobile, email, jobType, description, address, date, startHour, urgency } = req.body;
+  if (!name || !mobile || !jobType || !address) {
+    return res.status(400).json({ ok: false, error: 'Missing required fields: name, mobile, jobType, address' });
+  }
+
+  // Assign a free tech for this slot
+  const activeTechs = TECHS.filter(t => techSettings[t]?.availableForBooking !== false);
+  let tech = 'TBD';
+  if (date && startHour != null && jobType !== 'Quote') {
+    const sh = Number(startHour);
+    const free = activeTechs.find(t =>
+      !jobs.some(j => j.tech === t && j.date === date && j.startHour <= sh && sh < j.startHour + j.duration)
+    );
+    if (free) tech = free;
+  }
+
+  const meta   = TYPE_META[jobType] || TYPE_META.General;
+  const isQuote = jobType === 'Quote';
+  const job = {
+    id:        `J-${++nextId}`,
+    tech,
+    customer:  business ? `${name} (${business})` : name,
+    type:      jobType,
+    address,
+    date:      date      || 'TBD',
+    startHour: startHour != null ? Number(startHour) : 0,
+    duration:  2,
+    amount:    0,
+    mobile,
+    email:     email || '',
+    status:    isQuote ? 'quote-pending' : 'confirmed',
+    description: description || '',
+    urgency:   urgency || 'routine',
+    color:     meta.border,
+    textColor: meta.text,
+    bgColor:   meta.color,
+    sourceChannel: 'form',
+  };
+  jobs.push(job);
+  console.log(`📋 Form booking: ${job.id} — ${job.customer} (${job.type})`);
+  res.json({ ok: true, booking: job });
 });
 
 // ── SMS send (Twilio if configured, simulated otherwise) ────────────
