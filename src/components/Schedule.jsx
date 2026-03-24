@@ -39,9 +39,21 @@ function fmtTime(h) {
   return `${h - 12}pm`;
 }
 
+// Vivid bright-green override for freshly booked jobs
+const NEW_STYLE = {
+  bg:     '#166534',
+  border: '#4ade80',
+  text:   '#ffffff',
+  label:  'NEW',
+};
+
 function JobBlock({ job, isNew }) {
   const [hovered, setHovered] = useState(false);
-  const style = job.status === 'pending' ? TYPE_STYLE.pending : (TYPE_STYLE[job.type] || TYPE_STYLE.General);
+  const style = isNew
+    ? NEW_STYLE
+    : job.status === 'pending'
+      ? TYPE_STYLE.pending
+      : (TYPE_STYLE[job.type] || TYPE_STYLE.General);
   const top    = (job.startHour - START_HOUR) * HOUR_HEIGHT;
   const height = Math.max(job.duration * HOUR_HEIGHT - 3, 24);
 
@@ -51,21 +63,23 @@ function JobBlock({ job, isNew }) {
       style={{
         top,
         height,
-        background:  style.bg,
+        background:  isNew ? `linear-gradient(135deg, #15803d, #166534)` : style.bg,
         borderLeft:  `3px solid ${style.border}`,
         boxShadow:   isNew
-          ? `0 0 0 2px ${style.border}, 0 4px 20px ${style.border}55`
+          ? `0 0 0 2px ${style.border}, 0 0 18px ${style.border}88`
           : hovered ? `0 2px 12px ${style.border}44` : 'none',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div className="jb-type" style={{ color: style.border, background: `${style.border}22` }}>
-        {style.label}{job.status === 'pending' && ' ✦'}
+      <div className="jb-type" style={{ color: isNew ? '#bbf7d0' : style.border, background: `${style.border}${isNew ? '33' : '22'}` }}>
+        {style.label} {isNew && '✦'}
       </div>
-      <div className="jb-customer" style={{ color: style.text }}>{job.customer}</div>
+      <div className={`jb-customer${isNew ? ' jb-customer-new' : ''}`} style={{ color: style.text }}>
+        {job.customer}
+      </div>
       {height > 60 && (
-        <div className="jb-meta" style={{ color: `${style.text}aa` }}>
+        <div className="jb-meta" style={{ color: isNew ? '#86efac' : `${style.text}aa` }}>
           {fmtTime(job.startHour)}–{fmtTime(job.startHour + job.duration)}
           {job.amount > 0 && ` · $${job.amount}`}
         </div>
