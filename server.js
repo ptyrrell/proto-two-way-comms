@@ -573,20 +573,20 @@ function forVoice(text) {
 // Polly.Nicole and Polly.Russell were retired by Amazon in Aug 2023.
 // Neural voices (-Neural) require Twilio Neural TTS tier.
 const VOICE_OPTIONS = {
-  'Polly.Joanna':        { label: '🇺🇸 Joanna — US Female (Standard) ★ default' },
-  'Polly.Matthew':       { label: '🇺🇸 Matthew — US Male (Standard)' },
-  'Polly.Joanna-Neural': { label: '🇺🇸 Joanna — US Female (Neural)' },
-  'Polly.Matthew-Neural':{ label: '🇺🇸 Matthew — US Male (Neural)' },
-  'Polly.Amy':           { label: '🇬🇧 Amy — British Female (Standard)' },
-  'Polly.Brian':         { label: '🇬🇧 Brian — British Male (Standard)' },
-  'Polly.Emma':          { label: '🇬🇧 Emma — British Female (Standard)' },
-  'Polly.Amy-Neural':    { label: '🇬🇧 Amy — British Female (Neural)' },
-  'Polly.Brian-Neural':  { label: '🇬🇧 Brian — British Male (Neural)' },
+  'Polly.Joanna':        { lang: 'en-US', label: '🇺🇸 Joanna — US Female (Standard) ★ default' },
+  'Polly.Matthew':       { lang: 'en-US', label: '🇺🇸 Matthew — US Male (Standard)' },
+  'Polly.Joanna-Neural': { lang: 'en-US', label: '🇺🇸 Joanna — US Female (Neural)' },
+  'Polly.Matthew-Neural':{ lang: 'en-US', label: '🇺🇸 Matthew — US Male (Neural)' },
+  'Polly.Amy':           { lang: 'en-GB', label: '🇬🇧 Amy — British Female (Standard)' },
+  'Polly.Brian':         { lang: 'en-GB', label: '🇬🇧 Brian — British Male (Standard)' },
+  'Polly.Emma':          { lang: 'en-GB', label: '🇬🇧 Emma — British Female (Standard)' },
+  'Polly.Amy-Neural':    { lang: 'en-GB', label: '🇬🇧 Amy — British Female (Neural)' },
+  'Polly.Brian-Neural':  { lang: 'en-GB', label: '🇬🇧 Brian — British Male (Neural)' },
 };
 
 function getVoiceMeta() {
   const key = bookingSettings.voiceModel || 'Polly.Joanna';
-  return { voice: key };
+  return { voice: key, lang: VOICE_OPTIONS[key]?.lang || 'en-US' };
 }
 
 // Hints that help STT recognise Australian phone numbers and common field-service terms
@@ -604,15 +604,13 @@ const VOICE_HINTS = [
 function buildTwiML(spokenText, actionUrl, end = false) {
   const safe     = xmlEsc(spokenText);
   const model    = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
-  // Note: do NOT set language on <Say> for Polly voices — Polly uses its own locale.
-  // language on <Gather> controls STT; language on <Say> is only for Twilio's own TTS.
   const enhanced = bookingSettings.voiceEnhanced ? 'true' : 'false';
-  const { voice } = getVoiceMeta();
+  const { voice, lang } = getVoiceMeta();
 
   if (end) {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="${voice}">${safe}</Say>
+  <Say voice="${voice}" language="${lang}">${safe}</Say>
   <Hangup/>
 </Response>`;
   }
@@ -621,9 +619,9 @@ function buildTwiML(spokenText, actionUrl, end = false) {
   <Gather input="speech" action="${actionUrl}" method="POST"
           speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
-    <Say voice="${voice}">${safe}</Say>
+    <Say voice="${voice}" language="${lang}">${safe}</Say>
   </Gather>
-  <Say voice="${voice}">Sorry, I didn't catch that. Let me try again.</Say>
+  <Say voice="${voice}" language="${lang}">Sorry, I didn't catch that. Let me try again.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`;
 }
@@ -664,7 +662,7 @@ app.post('/api/voice/incoming', (req, res) => {
   const actionUrl        = `${BASE_URL}/api/voice/process`;
   const model            = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
   const enhanced         = bookingSettings.voiceEnhanced ? 'true' : 'false';
-  const { voice }        = getVoiceMeta();
+  const { voice, lang }  = getVoiceMeta();
 
   res.set('Content-Type', 'text/xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
@@ -672,9 +670,9 @@ app.post('/api/voice/incoming', (req, res) => {
   <Gather input="speech" action="${actionUrl}" method="POST"
           speechTimeout="auto" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
-    <Say voice="${voice}">${greeting}</Say>
+    <Say voice="${voice}" language="${lang}">${greeting}</Say>
   </Gather>
-  <Say voice="${voice}">I didn't catch that. Let me try again.</Say>
+  <Say voice="${voice}" language="${lang}">I didn't catch that. Let me try again.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`);
 });
