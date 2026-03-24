@@ -70,7 +70,8 @@ let promptSettings = {
   showTechNames:         false,
   collectContactDetails: true,
   enabledJobTypes:       ['HVAC', 'Electrical', 'Plumbing', 'General', 'Quote', 'Service/Breakdown'],
-  requiredFields:        ['date', 'time', 'address', 'name', 'business', 'description', 'urgency'],
+  enabledUrgencyLevels:  ['Routine', 'Soon', 'Urgent', 'Emergency'],
+  requiredFields:        ['date', 'time', 'address', 'name', 'business', 'description'],
   customInstructions:    '',
   customFullPrompt:      null,   // when set, overrides the auto-built prompt; supports tokens: {TODAY} {SLOTS} {PERSONA} {COMPANY}
 };
@@ -391,7 +392,7 @@ app.get('/api/config', (_req, res) => {
     voiceNumber:      process.env.TWILIO_FROM_NUMBER || null,
     voiceEnabled:     !!twilioClient,
     voiceOptions:     VOICE_OPTIONS,
-    currentVoice:     bookingSettings.voiceModel || 'Polly.Nicole',
+    currentVoice:     bookingSettings.voiceModel || 'Polly.Joanna',
   });
 });
 
@@ -568,25 +569,23 @@ function forVoice(text) {
 }
 
 // ── Available TTS voices (Amazon Polly via Twilio) ─────────────────
-// Standard Polly voices are universally supported.
-// Neural (-Neural suffix) require Twilio's Neural TTS add-on.
-// Do NOT set language on <Say> for Polly — Polly uses its own locale.
+// Only voices confirmed active in Twilio/Amazon Polly as of 2025.
+// Polly.Nicole and Polly.Russell were retired by Amazon in Aug 2023.
+// Neural voices (-Neural) require Twilio Neural TTS tier.
 const VOICE_OPTIONS = {
-  'Polly.Nicole':        { label: '🇦🇺 Nicole — Australian Female (Standard) ★ recommended' },
-  'Polly.Russell':       { label: '🇦🇺 Russell — Australian Male (Standard)' },
+  'Polly.Joanna':        { label: '🇺🇸 Joanna — US Female (Standard) ★ default' },
+  'Polly.Matthew':       { label: '🇺🇸 Matthew — US Male (Standard)' },
+  'Polly.Joanna-Neural': { label: '🇺🇸 Joanna — US Female (Neural)' },
+  'Polly.Matthew-Neural':{ label: '🇺🇸 Matthew — US Male (Neural)' },
   'Polly.Amy':           { label: '🇬🇧 Amy — British Female (Standard)' },
   'Polly.Brian':         { label: '🇬🇧 Brian — British Male (Standard)' },
   'Polly.Emma':          { label: '🇬🇧 Emma — British Female (Standard)' },
-  'Polly.Joanna':        { label: '🇺🇸 Joanna — US Female (Standard)' },
-  'Polly.Matthew':       { label: '🇺🇸 Matthew — US Male (Standard)' },
   'Polly.Amy-Neural':    { label: '🇬🇧 Amy — British Female (Neural)' },
   'Polly.Brian-Neural':  { label: '🇬🇧 Brian — British Male (Neural)' },
-  'Polly.Joanna-Neural': { label: '🇺🇸 Joanna — US Female (Neural)' },
-  'Polly.Matthew-Neural':{ label: '🇺🇸 Matthew — US Male (Neural)' },
 };
 
 function getVoiceMeta() {
-  const key = bookingSettings.voiceModel || 'Polly.Nicole';
+  const key = bookingSettings.voiceModel || 'Polly.Joanna';
   return { voice: key };
 }
 
