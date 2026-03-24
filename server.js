@@ -661,7 +661,7 @@ app.post('/api/voice/incoming', (req, res) => {
     booking:    null,
   });
 
-  const greeting         = xmlEsc(promptSettings.voiceGreeting || "Sorry, all our humans are busy right now. Would you be up to booking your job in with me, Fiona?");
+  const greeting         = xmlEsc(promptSettings.voiceGreeting || "Sorry, all our humans are busy right now. Would you be up to booking a job with us today?");
   const actionUrl        = `${BASE_URL}/api/voice/process`;
   const model            = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
   const enhanced         = bookingSettings.voiceEnhanced ? 'true' : 'false';
