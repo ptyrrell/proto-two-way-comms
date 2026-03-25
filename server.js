@@ -3,6 +3,56 @@ import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import twilio from 'twilio';
+import pg from 'pg';
+
+// ── PostgreSQL client (Heroku sets DATABASE_URL automatically) ──────────────
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+});
+
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS feature_requests (
+      id           TEXT PRIMARY KEY,
+      title        TEXT NOT NULL,
+      description  TEXT,
+      category     TEXT NOT NULL,
+      ai_supercharged BOOLEAN DEFAULT FALSE,
+      name         TEXT,
+      email        TEXT NOT NULL,
+      submitted_at TIMESTAMPTZ DEFAULT NOW(),
+      status       TEXT DEFAULT 'backlog',
+      approved_at  TIMESTAMPTZ
+    )
+  `);
+  console.log('✅ PostgreSQL feature_requests table ready');
+}
+
+// Generate next FR id from DB max
+async function nextFrId() {
+  const { rows } = await pool.query(`SELECT id FROM feature_requests ORDER BY submitted_at DESC LIMIT 1`);
+  if (!rows.length) return 'FR-001';
+  const nums = rows.map(r => parseInt(r.id.replace('FR-', ''), 10));
+  const { rows: all } = await pool.query(`SELECT id FROM feature_requests`);
+  const max = Math.max(0, ...all.map(r => parseInt(r.id.replace('FR-', ''), 10)));
+  return `FR-${String(max + 1).padStart(3, '0')}`;
+}
+
+function rowToFr(r) {
+  return {
+    id:            r.id,
+    title:         r.title,
+    description:   r.description || '',
+    category:      r.category,
+    aiSupercharged: r.ai_supercharged,
+    name:          r.name || 'Anonymous',
+    email:         r.email,
+    submittedAt:   r.submitted_at,
+    status:        r.status,
+    approvedAt:    r.approved_at,
+  };
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -1019,56 +1069,77 @@ app.post('/api/send-sms', async (req, res) => {
   return res.json({ ok: true, simulated: true, to, message });
 });
 
-// ── Feature Requests (Customer Ideas) ─────────────────────────────
-let featureRequests = [];
-let frNextId = 1;
+// ── Feature Requests (Customer Ideas) — PostgreSQL backed ─────────────────
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'fieldinsight-admin';
 
-app.get('/api/feature-requests', (_req, res) => {
-  res.json({ requests: featureRequests });
+app.get('/api/feature-requests', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM feature_requests ORDER BY submitted_at DESC`
+    );
+    res.json({ requests: rows.map(rowToFr) });
+  } catch (e) {
+    console.error('DB error GET feature-requests:', e.message);
+    res.status(500).json({ ok: false, error: 'Database error' });
+  }
 });
 
-app.post('/api/feature-requests', (req, res) => {
+app.post('/api/feature-requests', async (req, res) => {
   const { title, description, category, aiSupercharged, name, email } = req.body;
   if (!title || !email || !category) {
     return res.status(400).json({ ok: false, error: 'title, email and category are required' });
   }
-  const fr = {
-    id:            `FR-${String(frNextId++).padStart(3, '0')}`,
-    title:         title.trim(),
-    description:   (description || '').trim(),
-    category,
-    aiSupercharged: !!aiSupercharged,
-    name:          (name || 'Anonymous').trim(),
-    email:         email.trim().toLowerCase(),
-    submittedAt:   new Date().toISOString(),
-    status:        'backlog',   // backlog | consideration
-    approvedAt:    null,
-  };
-  featureRequests.push(fr);
-  console.log(`💡 Feature request: [${fr.id}] "${fr.title}" by ${fr.email}`);
-  res.json({ ok: true, request: fr });
+  try {
+    const id = await nextFrId();
+    const { rows } = await pool.query(
+      `INSERT INTO feature_requests (id, title, description, category, ai_supercharged, name, email, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'backlog') RETURNING *`,
+      [id, title.trim(), (description||'').trim(), category, !!aiSupercharged,
+       (name||'Anonymous').trim(), email.trim().toLowerCase()]
+    );
+    const fr = rowToFr(rows[0]);
+    console.log(`💡 Feature request: [${fr.id}] "${fr.title}" by ${fr.email}`);
+    res.json({ ok: true, request: fr });
+  } catch (e) {
+    console.error('DB error POST feature-requests:', e.message);
+    res.status(500).json({ ok: false, error: 'Database error' });
+  }
 });
 
-app.patch('/api/feature-requests/:id/approve', (req, res) => {
+app.patch('/api/feature-requests/:id/approve', async (req, res) => {
   const { secret } = req.body;
   if (secret !== ADMIN_SECRET) return res.status(403).json({ ok: false, error: 'Unauthorised' });
-  const fr = featureRequests.find(r => r.id === req.params.id);
-  if (!fr) return res.status(404).json({ ok: false, error: 'Not found' });
-  fr.status     = 'consideration';
-  fr.approvedAt = new Date().toISOString();
-  console.log(`✅ Feature request approved: [${fr.id}] "${fr.title}"`);
-  res.json({ ok: true, request: fr });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE feature_requests SET status='consideration', approved_at=NOW()
+       WHERE id=$1 RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Not found' });
+    const fr = rowToFr(rows[0]);
+    console.log(`✅ Feature request approved: [${fr.id}] "${fr.title}"`);
+    res.json({ ok: true, request: fr });
+  } catch (e) {
+    console.error('DB error approve feature-request:', e.message);
+    res.status(500).json({ ok: false, error: 'Database error' });
+  }
 });
 
-app.patch('/api/feature-requests/:id/reject', (req, res) => {
+app.patch('/api/feature-requests/:id/reject', async (req, res) => {
   const { secret } = req.body;
   if (secret !== ADMIN_SECRET) return res.status(403).json({ ok: false, error: 'Unauthorised' });
-  const fr = featureRequests.find(r => r.id === req.params.id);
-  if (!fr) return res.status(404).json({ ok: false, error: 'Not found' });
-  fr.status = 'backlog';
-  fr.approvedAt = null;
-  res.json({ ok: true, request: fr });
+  try {
+    const { rows } = await pool.query(
+      `UPDATE feature_requests SET status='backlog', approved_at=NULL
+       WHERE id=$1 RETURNING *`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, error: 'Not found' });
+    res.json({ ok: true, request: rowToFr(rows[0]) });
+  } catch (e) {
+    console.error('DB error reject feature-request:', e.message);
+    res.status(500).json({ ok: false, error: 'Database error' });
+  }
 });
 
 // Serve React build in production
@@ -1077,4 +1148,10 @@ if (process.env.NODE_ENV === 'production') {
   app.use((_req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 }
 
-app.listen(PORT, () => console.log(`🚀 FieldInsight Two-Way Comms — port ${PORT}`));
+// Init DB then start server
+initDb()
+  .then(() => app.listen(PORT, () => console.log(`🚀 FieldInsight Two-Way Comms — port ${PORT}`)))
+  .catch(err => {
+    console.error('Failed to initialise DB, starting without persistence:', err.message);
+    app.listen(PORT, () => console.log(`🚀 FieldInsight Two-Way Comms — port ${PORT} (no DB)`));
+  });
