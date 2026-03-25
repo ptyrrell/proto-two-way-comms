@@ -9,6 +9,17 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false })); // required for Twilio form-encoded webhooks
 
+// CORS — allow GitHub Pages (customer ideas page) to call this API
+app.use((req, res, next) => {
+  const allowed = ['https://ptyrrell.github.io', 'http://localhost:5173', 'http://localhost:3001'];
+  const origin  = req.headers.origin;
+  if (allowed.includes(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 const BASE_URL = process.env.BASE_URL || 'https://fi-two-way-comms-5c8b7580a98c.herokuapp.com';
 
 const PORT = process.env.PORT || 3001;
@@ -1006,6 +1017,58 @@ app.post('/api/send-sms', async (req, res) => {
   // Simulated — log and return success
   console.log(`[SMS SIMULATION]\nTo: ${to}\n---\n${message}\n---`);
   return res.json({ ok: true, simulated: true, to, message });
+});
+
+// ── Feature Requests (Customer Ideas) ─────────────────────────────
+let featureRequests = [];
+let frNextId = 1;
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'fieldinsight-admin';
+
+app.get('/api/feature-requests', (_req, res) => {
+  res.json({ requests: featureRequests });
+});
+
+app.post('/api/feature-requests', (req, res) => {
+  const { title, description, category, aiSupercharged, name, email } = req.body;
+  if (!title || !email || !category) {
+    return res.status(400).json({ ok: false, error: 'title, email and category are required' });
+  }
+  const fr = {
+    id:            `FR-${String(frNextId++).padStart(3, '0')}`,
+    title:         title.trim(),
+    description:   (description || '').trim(),
+    category,
+    aiSupercharged: !!aiSupercharged,
+    name:          (name || 'Anonymous').trim(),
+    email:         email.trim().toLowerCase(),
+    submittedAt:   new Date().toISOString(),
+    status:        'backlog',   // backlog | consideration
+    approvedAt:    null,
+  };
+  featureRequests.push(fr);
+  console.log(`💡 Feature request: [${fr.id}] "${fr.title}" by ${fr.email}`);
+  res.json({ ok: true, request: fr });
+});
+
+app.patch('/api/feature-requests/:id/approve', (req, res) => {
+  const { secret } = req.body;
+  if (secret !== ADMIN_SECRET) return res.status(403).json({ ok: false, error: 'Unauthorised' });
+  const fr = featureRequests.find(r => r.id === req.params.id);
+  if (!fr) return res.status(404).json({ ok: false, error: 'Not found' });
+  fr.status     = 'consideration';
+  fr.approvedAt = new Date().toISOString();
+  console.log(`✅ Feature request approved: [${fr.id}] "${fr.title}"`);
+  res.json({ ok: true, request: fr });
+});
+
+app.patch('/api/feature-requests/:id/reject', (req, res) => {
+  const { secret } = req.body;
+  if (secret !== ADMIN_SECRET) return res.status(403).json({ ok: false, error: 'Unauthorised' });
+  const fr = featureRequests.find(r => r.id === req.params.id);
+  if (!fr) return res.status(404).json({ ok: false, error: 'Not found' });
+  fr.status = 'backlog';
+  fr.approvedAt = null;
+  res.json({ ok: true, request: fr });
 });
 
 // Serve React build in production
