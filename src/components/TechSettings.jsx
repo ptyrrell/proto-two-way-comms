@@ -517,7 +517,7 @@ export default function TechSettings({ onClose }) {
               <div className="br-stepper">
                 <button
                   className="br-step-btn"
-                  onClick={() => saveBooking({ voiceTimeout: Math.max(3, (bookingSettings.voiceTimeout ?? 15) - 1) })}
+                  onClick={() => saveBooking({ voiceTimeout: Math.max(1, (bookingSettings.voiceTimeout ?? 15) - 1) })}
                 >−</button>
                 <span className="br-value">{bookingSettings.voiceTimeout ?? 15}s</span>
                 <button
