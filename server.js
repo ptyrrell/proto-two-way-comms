@@ -59,8 +59,8 @@ let bookingSettings = {
   voiceSpeechModel:   'numbers_and_commands', // STT model
   voiceEnhanced:      true,  // Twilio enhanced STT model (higher accuracy, extra cost)
   voiceMaxTurns:      20,    // maximum conversation turns before graceful exit
-  voiceTimeout:       15,    // seconds Twilio waits for caller to START speaking
-  voiceSpeechTimeout: 4,     // seconds of silence after caller STOPS speaking before submitting
+  voiceTimeout:       5,     // seconds Twilio waits for caller to START speaking
+  voiceSpeechTimeout: 1,     // seconds of silence after caller STOPS speaking before submitting
 };
 
 // AI persona & prompt settings
