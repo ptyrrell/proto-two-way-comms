@@ -56,9 +56,11 @@ let bookingSettings = {
   defaultJobDuration: 1,        // default job length in hours (60 min)
   // VOIP / IVR settings
   voiceModel:       'Polly.Joanna',         // TTS voice (Amazon Polly via Twilio)
-  voiceSpeechModel: 'numbers_and_commands', // STT model
-  voiceEnhanced:    true,       // Twilio enhanced STT model (higher accuracy, extra cost)
-  voiceMaxTurns:    20,         // maximum conversation turns before graceful exit
+  voiceSpeechModel:   'numbers_and_commands', // STT model
+  voiceEnhanced:      true,  // Twilio enhanced STT model (higher accuracy, extra cost)
+  voiceMaxTurns:      20,    // maximum conversation turns before graceful exit
+  voiceTimeout:       15,    // seconds Twilio waits for caller to START speaking
+  voiceSpeechTimeout: 4,     // seconds of silence after caller STOPS speaking before submitting
 };
 
 // AI persona & prompt settings
@@ -496,7 +498,8 @@ app.post('/api/settings/booking', (req, res) => {
   const { bufferHours, workingDays, startHour, endHour,
           lunchEnabled, lunchStart, lunchEnd,
           defaultJobDuration,
-          voiceSpeechModel, voiceEnhanced, voiceMaxTurns } = req.body;
+          voiceSpeechModel, voiceEnhanced, voiceMaxTurns,
+          voiceTimeout, voiceSpeechTimeout } = req.body;
   if (bufferHours        !== undefined) bookingSettings.bufferHours        = Number(bufferHours);
   if (workingDays        !== undefined) bookingSettings.workingDays        = workingDays;
   if (startHour          !== undefined) bookingSettings.startHour          = Number(startHour);
@@ -509,6 +512,8 @@ app.post('/api/settings/booking', (req, res) => {
   if (voiceSpeechModel   !== undefined) bookingSettings.voiceSpeechModel   = voiceSpeechModel;
   if (voiceEnhanced      !== undefined) bookingSettings.voiceEnhanced      = Boolean(voiceEnhanced);
   if (voiceMaxTurns      !== undefined) bookingSettings.voiceMaxTurns      = Number(voiceMaxTurns);
+  if (voiceTimeout       !== undefined) bookingSettings.voiceTimeout       = Number(voiceTimeout);
+  if (voiceSpeechTimeout !== undefined) bookingSettings.voiceSpeechTimeout = Number(voiceSpeechTimeout);
   console.log('Booking settings updated:', bookingSettings);
   res.json({ ok: true, bookingSettings });
 });
@@ -648,8 +653,10 @@ const VOICE_HINTS = [
 
 function buildTwiML(spokenText, actionUrl, end = false) {
   const safe     = xmlEsc(spokenText);
-  const model    = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
-  const enhanced = bookingSettings.voiceEnhanced ? 'true' : 'false';
+  const model       = bookingSettings.voiceSpeechModel   || 'numbers_and_commands';
+  const enhanced    = bookingSettings.voiceEnhanced ? 'true' : 'false';
+  const timeout     = bookingSettings.voiceTimeout       ?? 15;
+  const speechTmt   = bookingSettings.voiceSpeechTimeout ?? 4;
   const { voice, lang } = getVoiceMeta();
 
   if (end) {
@@ -662,7 +669,7 @@ function buildTwiML(spokenText, actionUrl, end = false) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST"
-          timeout="15" speechTimeout="4" speechModel="${model}" enhanced="${enhanced}"
+          timeout="${timeout}" speechTimeout="${speechTmt}" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
     <Say voice="${voice}" language="${lang}">${safe}</Say>
   </Gather>
@@ -705,15 +712,17 @@ app.post('/api/voice/incoming', (req, res) => {
 
   const greeting         = xmlEsc(promptSettings.voiceGreeting || "Sorry, all our humans are busy right now. Would you be up to booking a job with us today?");
   const actionUrl        = `${BASE_URL}/api/voice/process`;
-  const model            = bookingSettings.voiceSpeechModel || 'numbers_and_commands';
+  const model            = bookingSettings.voiceSpeechModel   || 'numbers_and_commands';
   const enhanced         = bookingSettings.voiceEnhanced ? 'true' : 'false';
+  const timeout          = bookingSettings.voiceTimeout       ?? 15;
+  const speechTmt        = bookingSettings.voiceSpeechTimeout ?? 4;
   const { voice, lang }  = getVoiceMeta();
 
   res.set('Content-Type', 'text/xml');
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="${actionUrl}" method="POST"
-          timeout="15" speechTimeout="4" speechModel="${model}" enhanced="${enhanced}"
+          timeout="${timeout}" speechTimeout="${speechTmt}" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
     <Say voice="${voice}" language="${lang}">${greeting}</Say>
   </Gather>

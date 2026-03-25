@@ -74,6 +74,8 @@ export default function TechSettings({ onClose }) {
     voiceSpeechModel:   'numbers_and_commands',
     voiceEnhanced:      true,
     voiceMaxTurns:      20,
+    voiceTimeout:       15,
+    voiceSpeechTimeout: 4,
   });
   const [promptSettings,  setPromptSettings]  = useState(DEFAULT_PROMPT);
   const [promptPreview,   setPromptPreview]   = useState('');
@@ -500,6 +502,48 @@ export default function TechSettings({ onClose }) {
                 <button
                   className="br-step-btn"
                   onClick={() => saveBooking({ voiceMaxTurns: Math.min(50, (bookingSettings.voiceMaxTurns || 20) + 5) })}
+                >+</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Wait for caller to start speaking */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Response Wait — Start</div>
+              <div className="br-desc">Seconds Twilio waits for caller to begin speaking after Fiona finishes (currently {bookingSettings.voiceTimeout ?? 15}s)</div>
+            </div>
+            <div className="br-control">
+              <div className="br-stepper">
+                <button
+                  className="br-step-btn"
+                  onClick={() => saveBooking({ voiceTimeout: Math.max(3, (bookingSettings.voiceTimeout ?? 15) - 1) })}
+                >−</button>
+                <span className="br-value">{bookingSettings.voiceTimeout ?? 15}s</span>
+                <button
+                  className="br-step-btn"
+                  onClick={() => saveBooking({ voiceTimeout: Math.min(30, (bookingSettings.voiceTimeout ?? 15) + 1) })}
+                >+</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Wait after caller stops speaking */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Response Wait — End of Speech</div>
+              <div className="br-desc">Seconds of silence after caller stops speaking before Fiona processes the reply (currently {bookingSettings.voiceSpeechTimeout ?? 4}s)</div>
+            </div>
+            <div className="br-control">
+              <div className="br-stepper">
+                <button
+                  className="br-step-btn"
+                  onClick={() => saveBooking({ voiceSpeechTimeout: Math.max(1, (bookingSettings.voiceSpeechTimeout ?? 4) - 1) })}
+                >−</button>
+                <span className="br-value">{bookingSettings.voiceSpeechTimeout ?? 4}s</span>
+                <button
+                  className="br-step-btn"
+                  onClick={() => saveBooking({ voiceSpeechTimeout: Math.min(10, (bookingSettings.voiceSpeechTimeout ?? 4) + 1) })}
                 >+</button>
               </div>
             </div>
