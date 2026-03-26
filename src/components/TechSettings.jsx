@@ -74,8 +74,9 @@ export default function TechSettings({ onClose }) {
     voiceSpeechModel:   'numbers_and_commands',
     voiceEnhanced:      true,
     voiceMaxTurns:      20,
-    voiceTimeout:       5,
-    voiceSpeechTimeout: 1,
+    voiceTimeout:       5,   // seconds before caller starts speaking
+
+    voiceSpeechTimeout: 2,
   });
   const [promptSettings,  setPromptSettings]  = useState(DEFAULT_PROMPT);
   const [promptPreview,   setPromptPreview]   = useState('');

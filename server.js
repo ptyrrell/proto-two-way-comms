@@ -121,7 +121,7 @@ let bookingSettings = {
   voiceEnhanced:      true,  // Twilio enhanced STT model (higher accuracy, extra cost)
   voiceMaxTurns:      20,    // maximum conversation turns before graceful exit
   voiceTimeout:       5,     // seconds Twilio waits for caller to START speaking
-  voiceSpeechTimeout: 1,     // seconds of silence after caller STOPS speaking before submitting
+  voiceSpeechTimeout: 2,     // seconds of silence after caller STOPS speaking before submitting
 };
 
 // AI persona & prompt settings
@@ -702,14 +702,20 @@ function getVoiceMeta() {
 
 // Hints that help STT recognise Australian phone numbers and common field-service terms
 const VOICE_HINTS = [
-  // digits spoken individually
+  // digits spoken individually and in pairs
   'zero,one,two,three,four,five,six,seven,eight,nine',
-  // AU mobile prefixes
+  'ten,eleven,twelve,thirteen,fourteen,fifteen,sixteen,seventeen,eighteen,nineteen,twenty',
+  // AU mobile prefixes — how people actually say them
   'oh four,zero four,04,041,042,043,044,045,046,047,048,049',
-  // common words
-  'HVAC,air conditioning,electrical,plumbing,booking,appointment,urgent,emergency,quote,service,breakdown',
+  'oh four one,oh four two,oh four three,oh four four,oh four five,oh four six,oh four seven,oh four eight,oh four nine',
+  // AU landline prefixes
+  'oh two,oh three,oh seven,oh eight,02,03,07,08',
+  // double digit combos common in phone numbers
+  'double oh,double one,double two,double three,double four,double five,double six,double seven,double eight,double nine',
+  // trade / service words
+  'HVAC,air conditioning,electrical,plumbing,refrigeration,booking,appointment,urgent,emergency,quote,service,breakdown,repair,installation',
   // address terms
-  'street,road,avenue,drive,place,court,unit,level,floor',
+  'street,road,avenue,drive,place,court,crescent,boulevard,lane,unit,level,floor,apartment',
 ].join(',');
 
 function buildTwiML(spokenText, actionUrl, end = false) {
