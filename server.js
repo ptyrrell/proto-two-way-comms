@@ -291,23 +291,35 @@ VOICE-SPECIFIC FLOW — follow these stages strictly in order:
 STAGE 1 — Consent:
   The opening greeting has already asked if the caller is happy to book.
   If they say YES, sure, okay, go ahead, or any affirmative:
-    Respond with exactly: "Wonderful! Could you please confirm your name and service address for me?"
-    Then wait — give them time to finish speaking. Do NOT ask for anything else at this stage.
+    Respond with exactly: "Great! Could I grab your mobile number first — just in case we get cut off?"
+    Then wait. Do NOT ask for anything else at this stage.
   If they say NO or want a human:
     Respond with: "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling, goodbye!"
     Then end the call.
 
-STAGE 2 — Name & Address:
-  Once you have received the caller's name and address (you do not need both to be perfect, just name and a suburb/street is enough to proceed):
-    Respond warmly acknowledging what you heard, then ask exactly: "Thanks for that! And what's the reason for your call today? Please describe the issue or work needed."
-    Do NOT ask for phone number or email at this stage.
+STAGE 2 — Confirm Mobile:
+  Once you receive the mobile number, repeat it back clearly to confirm:
+    "Got it — just confirming that's [repeat the number digit by digit]. Is that right?"
+  If they confirm YES:
+    Ask: "Perfect! And could I get your name and service address please?"
+  If they say NO or correct it:
+    Accept the corrected number, repeat it back once more, then ask for name and address.
+  Do NOT ask for job details yet.
 
-STAGE 3 — Job Details & Booking:
-  Once you understand the reason for the call, proceed with the normal booking flow:
+STAGE 3 — Name & Address:
+  Once you have the caller's name and a service address (suburb/street is enough to proceed):
+    Respond warmly acknowledging what you heard, then ask: "Thanks for that! And what's the reason for your call today? Please describe the issue or work needed."
+
+STAGE 4 — Job Details & Booking:
+  Once you understand the reason for the call:
   - Identify service type, confirm urgency if relevant
   - Offer 2–3 available time slots (dates and times only — no technician names)
-  - Collect contact number and email before finalising
-  - Confirm all details and output the BOOKING JSON
+  - Ask for email address for the confirmation: "And could I get your email address to send through a confirmation?"
+  - Confirm all details warmly and output the BOOKING JSON
+
+CONFIRMATION SUMMARY — before outputting BOOKING JSON, read back all details:
+  "Just to confirm — [Name], mobile [number], at [address], for [job type], on [date] at [time]. Email confirmation going to [email]. Does that all sound right?"
+  Wait for confirmation before outputting the BOOKING JSON.
 
 VOICE — MISHEARING RULE: If you did not clearly hear a number (phone, mobile) or email address, respond only with a short natural retry like "Sorry, could you say that again?" or "I didn't quite catch that one." Never explain what a phone number or email looks like. Never describe formats or digit counts. Just ask them to repeat it.`,
   }[channel] || 'conversational';
@@ -333,17 +345,18 @@ BOOKING TYPE DECISION — follow this every time:
     jobTypeSection += `
 [SERVICE CALL — ${standardTypes.join(' / ')}]
 1. Identify the type of service needed (HVAC, Electrical, Plumbing, or General)
-2. LAYER 1 — once you understand broadly what they need, say warmly in one message:
-   "Thanks for that! To get you booked in, could you please let me know:
-   • Your full name
-   • Your service address [NEEDS_ADDRESS]
-   • Your best contact number and email address
-   ...and I'll find you some available times."
-3. LAYER 2 — after receiving those, ask in one message:
-   "Perfect, thank you! Could you give me a full description of the issue or work needed?"
+2. LAYER 1 — ask for mobile number first, warmly: [NEEDS_CONTACT]
+   "To get you booked in, could I start with your mobile number? Just so we can reach you if needed."
+   Once received, confirm it back: "Got it — [repeat number]. Is that right?"
+3. LAYER 2 — after confirming mobile, ask together in one message:
+   "Thanks! And could I get your full name, service address [NEEDS_ADDRESS], and email address please?"
+4. LAYER 3 — after receiving those, ask in one message:
+   "Perfect! Could you give me a full description of the issue or work needed?"
    For HVAC or equipment also ask: "Are you able to identify the unit type and its location? (e.g. split system, ducted, rooftop, ceiling cassette)"
-4. LAYER 3 — confirm all details back in a warm summary, then suggest 2–3 available time slots (dates and times only, no technician names)
-5. Once they select a slot, finalise the booking`;
+5. LAYER 4 — confirm all details back warmly before booking:
+   "Just to confirm — [Name], mobile [number], at [address], email [email], for [job type]. Does that all look right?"
+   Then suggest 2–3 available time slots (dates and times only, no technician names)
+6. Once they select a slot and confirm, finalise the booking`;
   }
 
   if (hasBreakdown) {
@@ -351,14 +364,15 @@ BOOKING TYPE DECISION — follow this every time:
 
 [SERVICE / BREAKDOWN — urgent reactive]
 1. Acknowledge urgency warmly: "I'm sorry to hear that — let's get someone out to you as quickly as possible."
-2. LAYER 1 — ask together in one message:
-   "To get a technician to you quickly, could you please let me know:
-   • Your full name
-   • Your service address [NEEDS_ADDRESS]
-   • Your best contact number and email address"
-3. LAYER 2 — ask together:
+2. LAYER 1 — ask for mobile first: [NEEDS_CONTACT]
+   "To get someone out to you quickly, could I start with your mobile number?"
+   Confirm it back immediately: "Got it — [repeat number]. Is that right?"
+3. LAYER 2 — after confirming mobile, ask together:
+   "Thanks! Could I get your full name and service address? [NEEDS_ADDRESS]"
+4. LAYER 3 — ask together:
    "Thanks! What's happening exactly? And are you able to identify the unit type and its location? (e.g. rooftop unit, split system, switchboard, Level 2 plant room)"
-4. LAYER 3 — confirm all details back warmly, offer the earliest 2–3 available slots, note urgency`;
+   Also ask for email: "And your email for the confirmation?"
+5. LAYER 4 — confirm all details back warmly, offer the earliest 2–3 available slots, note urgency`;
   }
 
   if (hasQuote) {
@@ -366,24 +380,25 @@ BOOKING TYPE DECISION — follow this every time:
 
 [QUOTE — only when customer explicitly asks for a quote or describes new installation / major new works]
 1. Acknowledge warmly: "Absolutely — for that scope of work we'd need to come out and assess first, no problem at all."
-2. LAYER 1 — ask together in one message:
-   "To get this started, could you please let me know:
-   • Your full name
-   • Your service address [NEEDS_ADDRESS]
-   • Your best contact number and email address"
-3. LAYER 2 — ask: "Thanks! Could you describe the work required in as much detail as possible?" and if equipment-related: "Are you able to identify the unit type and its location?"
-4. LAYER 3 — confirm all details back warmly
+2. LAYER 1 — ask for mobile first: [NEEDS_CONTACT]
+   "To get this started, could I grab your mobile number?"
+   Confirm it back: "Got it — [repeat number]. Is that right?"
+3. LAYER 2 — after confirming mobile, ask together:
+   "Thanks! Could I get your full name, service address [NEEDS_ADDRESS], and email address?"
+4. LAYER 3 — ask: "Could you describe the work required in as much detail as possible?" and if equipment-related: "Are you able to identify the unit type and its location?"
+5. LAYER 4 — confirm all details back warmly:
+   "Just to confirm — [Name], mobile [number], at [address], email [email]. Does that look right?"
 5. Do NOT offer a time slot — say: "Our team will review the details and give you a call back to arrange a convenient time to come out."
 6. Output the QUOTE JSON below`;
   }
 
   // ── Contact collection ──
   const contactSection = collectContactDetails ? `
-CONTACT COLLECTION (do this after confirming service details, before finalising):
-1. "Can I confirm your mobile number? We may already have it on file." → collect/confirm mobile
-2. "And your email address for the confirmation?" → collect email
-3. Once confirmed say: "Perfect — a confirmation email and SMS will be sent, and you'll receive a reminder 1 hour before your appointment."
-When you ask for contact details, include [NEEDS_CONTACT] in your message.
+CONTACT COLLECTION:
+- Mobile number is collected FIRST at the start of every conversation (see flow above) and confirmed by repeating it back.
+- Email is collected once job details are understood, before offering time slots.
+- Once both are confirmed say: "Perfect — a confirmation email and SMS will be sent, and you'll receive a reminder 1 hour before your appointment."
+- When asking for contact details, include [NEEDS_CONTACT] in your message.
 
 IMPORTANT — if you did not clearly hear a phone number or email, simply say "Sorry, could you repeat that?" or "I didn't quite catch that — could you say it again?". Do NOT explain what a phone number looks like, do NOT describe the expected format, do NOT say things like "a mobile number is usually 10 digits". Just ask them to repeat it, warmly and briefly.` : '';
 
