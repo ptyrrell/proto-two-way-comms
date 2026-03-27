@@ -70,7 +70,8 @@ export default function TechSettings({ onClose }) {
     lunchEnabled:       true,
     lunchStart:         12,
     lunchEnd:           13,
-    voiceModel:         'Polly.Joanna',
+    aiEngine:           'gemini-flash',
+    voiceModel:         'Google.en-AU-Wavenet-C',
     voiceSpeechModel:   'numbers_and_commands',
     voiceEnhanced:      true,
     voiceMaxTurns:      20,
@@ -415,33 +416,64 @@ export default function TechSettings({ onClose }) {
 
         <div className="booking-rules">
 
-          {/* TTS Voice */}
+          {/* AI Engine */}
           <div className="br-row">
             <div className="br-label">
-              <div className="br-title">Fiona's Voice</div>
-              <div className="br-desc">Amazon Polly voice used for text-to-speech on calls</div>
+              <div className="br-title">AI Engine ✨</div>
+              <div className="br-desc">Model powering Fiona's responses — web chat and voice IVR</div>
             </div>
             <div className="br-control">
               <select
                 className="br-select"
-                value={bookingSettings.voiceModel || 'Polly.Joanna'}
-                onChange={e => saveBooking({ voiceModel: e.target.value })}
+                value={bookingSettings.aiEngine || 'gemini-flash'}
+                onChange={e => saveBooking({ aiEngine: e.target.value })}
                 style={{ minWidth: 280 }}
               >
-                <optgroup label="🇺🇸 US English (Standard)">
-                  <option value="Polly.Joanna">Joanna — US Female ★ default</option>
-                  <option value="Polly.Matthew">Matthew — US Male</option>
+                <optgroup label="Google Gemini">
+                  <option value="gemini-flash">Gemini 2.5 Flash — fast, high quality ★ default</option>
+                  <option value="gemini-pro">Gemini 2.5 Flash (Pro config)</option>
                 </optgroup>
-                <optgroup label="🇺🇸 US English (Neural)">
+                <optgroup label="Anthropic Claude (fallback)">
+                  <option value="claude">Claude Sonnet 4.5</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+
+          {/* TTS Voice */}
+          <div className="br-row">
+            <div className="br-label">
+              <div className="br-title">Fiona's Voice</div>
+              <div className="br-desc">Text-to-speech voice used on calls — Google AU Wavenet recommended for real Australian accent</div>
+            </div>
+            <div className="br-control">
+              <select
+                className="br-select"
+                value={bookingSettings.voiceModel || 'Google.en-AU-Wavenet-C'}
+                onChange={e => saveBooking({ voiceModel: e.target.value })}
+                style={{ minWidth: 300 }}
+              >
+                <optgroup label="🇦🇺 Australian (Google Wavenet)">
+                  <option value="Google.en-AU-Wavenet-C">Wavenet-C — AU Female ★ default</option>
+                  <option value="Google.en-AU-Wavenet-A">Wavenet-A — AU Female (alt)</option>
+                  <option value="Google.en-AU-Wavenet-B">Wavenet-B — AU Male</option>
+                  <option value="Google.en-AU-Wavenet-D">Wavenet-D — AU Male (alt)</option>
+                </optgroup>
+                <optgroup label="🇦🇺 Australian (Google Neural2 — HD)">
+                  <option value="Google.en-AU-Neural2-A">Neural2-A — AU Female (HD)</option>
+                  <option value="Google.en-AU-Neural2-B">Neural2-B — AU Male (HD)</option>
+                  <option value="Google.en-AU-Neural2-C">Neural2-C — AU Female (HD alt)</option>
+                  <option value="Google.en-AU-Neural2-D">Neural2-D — AU Male (HD alt)</option>
+                </optgroup>
+                <optgroup label="🇺🇸 US English (Amazon Polly)">
+                  <option value="Polly.Joanna">Joanna — US Female (Standard)</option>
+                  <option value="Polly.Matthew">Matthew — US Male (Standard)</option>
                   <option value="Polly.Joanna-Neural">Joanna — US Female (Neural)</option>
                   <option value="Polly.Matthew-Neural">Matthew — US Male (Neural)</option>
                 </optgroup>
-                <optgroup label="🇬🇧 British (Standard)">
+                <optgroup label="🇬🇧 British (Amazon Polly)">
                   <option value="Polly.Amy">Amy — UK Female</option>
                   <option value="Polly.Brian">Brian — UK Male</option>
-                  <option value="Polly.Emma">Emma — UK Female</option>
-                </optgroup>
-                <optgroup label="🇬🇧 British (Neural)">
                   <option value="Polly.Amy-Neural">Amy — UK Female (Neural)</option>
                   <option value="Polly.Brian-Neural">Brian — UK Male (Neural)</option>
                 </optgroup>

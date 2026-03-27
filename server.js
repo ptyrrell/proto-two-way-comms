@@ -81,10 +81,23 @@ try {
     anthropicClient = new Anthropic();
     console.log('✓ Anthropic client initialised');
   } else {
-    console.log('⚠  No ANTHROPIC_API_KEY — using mock responses');
+    console.log('⚠  No ANTHROPIC_API_KEY — Claude unavailable');
   }
 } catch (e) {
   console.log('Anthropic SDK not available:', e.message);
+}
+
+let geminiClient = null;
+try {
+  const { GoogleGenAI } = await import('@google/genai');
+  if (process.env.GOOGLE_GEMINI_API_KEY) {
+    geminiClient = new GoogleGenAI({ apiKey: process.env.GOOGLE_GEMINI_API_KEY });
+    console.log('✓ Gemini client initialised');
+  } else {
+    console.log('⚠  No GOOGLE_GEMINI_API_KEY — Gemini unavailable');
+  }
+} catch (e) {
+  console.log('Gemini SDK not available:', e.message);
 }
 
 // ── Twilio client ───────────────────────────────────────────────────
@@ -116,7 +129,8 @@ let bookingSettings = {
   // Job duration
   defaultJobDuration: 1,        // default job length in hours (60 min)
   // VOIP / IVR settings
-  voiceModel:       'Polly.Joanna',         // TTS voice (Amazon Polly via Twilio)
+  aiEngine:         'gemini-flash',          // AI engine: 'gemini-flash' | 'gemini-pro' | 'claude'
+  voiceModel:       'Google.en-AU-Wavenet-C', // TTS voice (Google Wavenet AU female, real AU accent)
   voiceSpeechModel:   'numbers_and_commands', // STT model
   voiceEnhanced:      true,  // Twilio enhanced STT model (higher accuracy, extra cost)
   voiceMaxTurns:      20,    // maximum conversation turns before graceful exit
@@ -528,7 +542,10 @@ app.get('/api/config', (_req, res) => {
     voiceNumber:      process.env.TWILIO_FROM_NUMBER || null,
     voiceEnabled:     !!twilioClient,
     voiceOptions:     VOICE_OPTIONS,
-    currentVoice:     bookingSettings.voiceModel || 'Polly.Joanna',
+    currentVoice:     bookingSettings.voiceModel || 'Google.en-AU-Wavenet-C',
+    aiEngine:         bookingSettings.aiEngine   || 'gemini-flash',
+    geminiAvailable:  !!geminiClient,
+    claudeAvailable:  !!anthropicClient,
   });
 });
 
@@ -602,6 +619,7 @@ app.post('/api/settings/booking', (req, res) => {
   if (lunchEnd           !== undefined) bookingSettings.lunchEnd           = Number(lunchEnd);
   if (defaultJobDuration !== undefined) bookingSettings.defaultJobDuration = Number(defaultJobDuration);
   if (req.body.voiceModel !== undefined) bookingSettings.voiceModel        = req.body.voiceModel;
+  if (req.body.aiEngine   !== undefined) bookingSettings.aiEngine           = req.body.aiEngine;
   if (voiceSpeechModel   !== undefined) bookingSettings.voiceSpeechModel   = voiceSpeechModel;
   if (voiceEnhanced      !== undefined) bookingSettings.voiceEnhanced      = Boolean(voiceEnhanced);
   if (voiceMaxTurns      !== undefined) bookingSettings.voiceMaxTurns      = Number(voiceMaxTurns);
@@ -611,10 +629,46 @@ app.post('/api/settings/booking', (req, res) => {
   res.json({ ok: true, bookingSettings });
 });
 
+// ── Unified AI generation — routes to Gemini or Claude based on aiEngine setting ──
+async function aiGenerate(systemPrompt, messages, maxTokens = 800) {
+  const engine = bookingSettings.aiEngine || 'gemini-flash';
+
+  // ── Gemini ──
+  if ((engine === 'gemini-flash' || engine === 'gemini-pro') && geminiClient) {
+    const modelId = engine === 'gemini-pro' ? 'gemini-2.5-flash' : 'gemini-2.5-flash';
+    // Gemini uses 'model' for assistant role
+    const contents = messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+    const response = await geminiClient.models.generateContent({
+      model: modelId,
+      systemInstruction: systemPrompt,
+      contents,
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+    });
+    return response.text;
+  }
+
+  // ── Claude fallback ──
+  if (anthropicClient) {
+    const resp = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-5',
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages,
+    });
+    return resp.content[0].text;
+  }
+
+  throw new Error('No AI engine available — set GOOGLE_GEMINI_API_KEY or ANTHROPIC_API_KEY');
+}
+
 app.post('/api/chat', async (req, res) => {
   const { messages, channel } = req.body;
 
-  if (!anthropicClient) {
+  const hasAI = geminiClient || anthropicClient;
+  if (!hasAI) {
     const isFirst = messages.filter(m => m.role === 'user' && !m.hidden).length <= 1;
     const mock = isFirst
       ? "Hi there! 👋 Welcome to FieldInsight. Would you like to book a service job? I can arrange HVAC, Electrical, Plumbing, or General maintenance — just let me know what you need."
@@ -623,14 +677,8 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
-    const resp = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 800,
-      system: buildSystem(channel || 'web'),
-      messages: messages.filter(m => !m.hidden).map(m => ({ role: m.role, content: m.content })),
-    });
-
-    const raw = resp.content[0].text;
+    const cleanMessages = messages.filter(m => !m.hidden).map(m => ({ role: m.role, content: m.content }));
+    const raw = await aiGenerate(buildSystem(channel || 'web'), cleanMessages, 800);
 
     // ── Address validation: handle [VALIDATE_ADDRESS:<addr>] inline ──
     let addressValidation = null;
@@ -711,25 +759,36 @@ function forVoice(text) {
     .trim();
 }
 
-// ── Available TTS voices (Amazon Polly via Twilio) ─────────────────
-// Only voices confirmed active in Twilio/Amazon Polly as of 2025.
-// Polly.Nicole and Polly.Russell were retired by Amazon in Aug 2023.
-// Neural voices (-Neural) require Twilio Neural TTS tier.
+// ── Available TTS voices for Twilio <Say> ──────────────────────────
+// Google Wavenet/Neural2 voices use en-AU for genuine Australian accent.
+// Amazon Polly voices kept as fallback.
 const VOICE_OPTIONS = {
-  'Polly.Joanna':        { lang: 'en-US', label: '🇺🇸 Joanna — US Female (Standard) ★ default' },
+  // ── Google — Australian English (real AU accent) ─────────────────
+  'Google.en-AU-Wavenet-C': { lang: 'en-AU', label: '🇦🇺 Wavenet-C — AU Female ★ default' },
+  'Google.en-AU-Wavenet-A': { lang: 'en-AU', label: '🇦🇺 Wavenet-A — AU Female (alt)' },
+  'Google.en-AU-Wavenet-B': { lang: 'en-AU', label: '🇦🇺 Wavenet-B — AU Male' },
+  'Google.en-AU-Wavenet-D': { lang: 'en-AU', label: '🇦🇺 Wavenet-D — AU Male (alt)' },
+  'Google.en-AU-Neural2-A': { lang: 'en-AU', label: '🇦🇺 Neural2-A — AU Female (HD)' },
+  'Google.en-AU-Neural2-B': { lang: 'en-AU', label: '🇦🇺 Neural2-B — AU Male (HD)' },
+  'Google.en-AU-Neural2-C': { lang: 'en-AU', label: '🇦🇺 Neural2-C — AU Female (HD alt)' },
+  'Google.en-AU-Neural2-D': { lang: 'en-AU', label: '🇦🇺 Neural2-D — AU Male (HD alt)' },
+  // ── Amazon Polly — US English ────────────────────────────────────
+  'Polly.Joanna':        { lang: 'en-US', label: '🇺🇸 Joanna — US Female (Standard)' },
   'Polly.Matthew':       { lang: 'en-US', label: '🇺🇸 Matthew — US Male (Standard)' },
   'Polly.Joanna-Neural': { lang: 'en-US', label: '🇺🇸 Joanna — US Female (Neural)' },
   'Polly.Matthew-Neural':{ lang: 'en-US', label: '🇺🇸 Matthew — US Male (Neural)' },
+  // ── Amazon Polly — British English ───────────────────────────────
   'Polly.Amy':           { lang: 'en-GB', label: '🇬🇧 Amy — British Female (Standard)' },
   'Polly.Brian':         { lang: 'en-GB', label: '🇬🇧 Brian — British Male (Standard)' },
-  'Polly.Emma':          { lang: 'en-GB', label: '🇬🇧 Emma — British Female (Standard)' },
   'Polly.Amy-Neural':    { lang: 'en-GB', label: '🇬🇧 Amy — British Female (Neural)' },
   'Polly.Brian-Neural':  { lang: 'en-GB', label: '🇬🇧 Brian — British Male (Neural)' },
 };
 
 function getVoiceMeta() {
-  const key = bookingSettings.voiceModel || 'Polly.Joanna';
-  return { voice: key, lang: VOICE_OPTIONS[key]?.lang || 'en-US' };
+  const key = bookingSettings.voiceModel || 'Google.en-AU-Wavenet-C';
+  const meta = VOICE_OPTIONS[key];
+  // For Google voices, Twilio needs language="en-AU" on the <Say> tag
+  return { voice: key, lang: meta?.lang || 'en-AU' };
 }
 
 // Hints that help STT recognise Australian phone numbers and common field-service terms
@@ -785,19 +844,14 @@ function buildTwiML(spokenText, actionUrl, end = false) {
 }
 
 async function claudeVoiceTurn(history) {
-  if (!anthropicClient) {
+  const hasAI = geminiClient || anthropicClient;
+  if (!hasAI) {
     const isFirst = history.filter(m => m.role === 'user').length <= 1;
     return isFirst
       ? `${promptSettings.greeting} Would you like to book a job with us today?`
       : "Thanks for that. Could you tell me a bit more about what you need?";
   }
-  const resp = await anthropicClient.messages.create({
-    model:      'claude-sonnet-4-5',
-    max_tokens: 600,
-    system:     buildSystem('voip'),
-    messages:   history,
-  });
-  return resp.content[0].text;
+  return aiGenerate(buildSystem('voip'), history, 600);
 }
 
 // ── /api/voice/incoming — inbound call webhook ──────────────────────
