@@ -118,7 +118,6 @@ function BrowserVoiceTest() {
       if (data.booking) setBooking(data.booking);
 
       addTurn('assistant', reply);
-      setHistory(prev => [...prev, { role: 'assistant', content: reply }]);
 
       setPhase('speaking');
       speak(reply, () => {
