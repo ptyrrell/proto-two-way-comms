@@ -8,7 +8,7 @@ const END_HOUR    = 19;
 const TOTAL_HOURS = END_HOUR - START_HOUR;
 const DAY_WIDTH   = 128;
 const TECH_COL_W  = 148;
-const DAYS_AHEAD  = 14;
+const DAYS_AHEAD  = 7;
 
 const TYPE_STYLE = {
   HVAC:       { bg: '#0f2d4a', border: '#2563eb', text: '#93c5fd', label: 'HVAC' },
@@ -18,12 +18,17 @@ const TYPE_STYLE = {
   pending:    { bg: '#2a1800', border: '#f59e0b', text: '#fcd34d', label: 'NEW' },
 };
 
+// Build ISO date string from a local Date without UTC shift
+function toLocalISO(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function getDates() {
   return Array.from({ length: DAYS_AHEAD }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
     return {
-      iso:        d.toISOString().split('T')[0],
+      iso:        toLocalISO(d),
       weekday:    d.toLocaleDateString('en-AU', { weekday: 'short' }),
       dayNum:     d.getDate(),
       monthShort: d.toLocaleDateString('en-AU', { month: 'short' }),
@@ -141,7 +146,7 @@ export default function Schedule() {
 
           {viewMode === 'internal' && (
             <>
-              <span className="sched-chip">2 weeks</span>
+              <span className="sched-chip">This week</span>
               <span className="sched-chip active-chip">Technicians</span>
               <button className={`sched-refresh-btn${refreshing ? ' spinning' : ''}`} onClick={handleRefresh} title="Refresh schedule">↻</button>
               <span className="sched-legend">

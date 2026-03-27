@@ -146,10 +146,23 @@ const TYPE_META = {
   General:    { color: '#0f3d2a', border: '#059669', text: '#6ee7b7' },
 };
 
+// Use Australian Eastern time so dates are correct regardless of server timezone (Heroku = UTC)
+function auToday() {
+  const now = new Date();
+  const auStr = now.toLocaleString('en-AU', { timeZone: 'Australia/Sydney',
+    year: 'numeric', month: '2-digit', day: '2-digit' });
+  // en-AU returns DD/MM/YYYY
+  const [d, m, y] = auStr.split('/');
+  return new Date(Number(y), Number(m) - 1, Number(d));
+}
+
 function dateStr(offset) {
-  const d = new Date();
+  const d = auToday();
   d.setDate(d.getDate() + offset);
-  return d.toISOString().split('T')[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 let jobs = [
@@ -265,7 +278,7 @@ function buildSlotList(showTechNames) {
 }
 
 function buildSystem(channel) {
-  const today    = new Date().toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const today    = new Date().toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday:'long', day:'numeric', month:'long', year:'numeric' });
   const slotList = buildSlotList(promptSettings.showTechNames);
   const { personaName, companyName, greeting, enabledJobTypes, enabledUrgencyLevels, collectContactDetails, requiredFields, customInstructions, customFullPrompt } = promptSettings;
 
@@ -611,8 +624,8 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const resp = await anthropicClient.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 600,
+      model: 'claude-sonnet-4-5',
+      max_tokens: 800,
       system: buildSystem(channel || 'web'),
       messages: messages.filter(m => !m.hidden).map(m => ({ role: m.role, content: m.content })),
     });
@@ -737,12 +750,19 @@ const VOICE_HINTS = [
   'street,road,avenue,drive,place,court,crescent,boulevard,lane,unit,level,floor,apartment',
 ].join(',');
 
+// Detect when Fiona is offering time slots — give caller 5s to think
+function isOfferingSlots(text) {
+  return /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|morning|afternoon|which (time|day|slot|works|would)|works better|prefer|available|does that work|suit you|am\b|pm\b|\d+(am|pm))\b/i.test(text);
+}
+
 function buildTwiML(spokenText, actionUrl, end = false) {
   const safe     = xmlEsc(spokenText);
   const model       = bookingSettings.voiceSpeechModel   || 'numbers_and_commands';
   const enhanced    = bookingSettings.voiceEnhanced ? 'true' : 'false';
   const timeout     = bookingSettings.voiceTimeout       ?? 15;
-  const speechTmt   = bookingSettings.voiceSpeechTimeout ?? 4;
+  const baseSpeech  = bookingSettings.voiceSpeechTimeout ?? 4;
+  // Give caller extra think-time when choosing a time slot
+  const speechTmt   = isOfferingSlots(spokenText) ? Math.max(baseSpeech, 5) : baseSpeech;
   const { voice, lang } = getVoiceMeta();
 
   if (end) {
@@ -772,8 +792,8 @@ async function claudeVoiceTurn(history) {
       : "Thanks for that. Could you tell me a bit more about what you need?";
   }
   const resp = await anthropicClient.messages.create({
-    model:      'claude-haiku-4-5',
-    max_tokens: 400,
+    model:      'claude-sonnet-4-5',
+    max_tokens: 600,
     system:     buildSystem('voip'),
     messages:   history,
   });

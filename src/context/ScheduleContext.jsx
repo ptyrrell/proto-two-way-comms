@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 const ScheduleContext = createContext(null);
 
@@ -9,35 +9,47 @@ export function ScheduleProvider({ children }) {
   const [bookingSettings, setBookingSettings] = useState(null);
   const [loading,         setLoading]         = useState(true);
   const [newJobId,        setNewJobId]        = useState(null);
+  const seenIdsRef = useRef(new Set());
 
   const reload = useCallback(() => {
     fetch('/api/schedule')
       .then(r => r.json())
       .then(data => {
-        setJobs(data.jobs);
+        // Detect brand-new jobs arriving via voice/server-side booking
+        const incoming = data.jobs || [];
+        const freshNew = incoming.find(
+          j => !seenIdsRef.current.has(j.id) && j.status === 'pending'
+        );
+        incoming.forEach(j => seenIdsRef.current.add(j.id));
+
+        setJobs(incoming);
         setTechs(data.techs);
         setTechSettings(data.techSettings || {});
         setBookingSettings(data.bookingSettings || null);
         setLoading(false);
+
+        if (freshNew) {
+          setNewJobId(freshNew.id);
+          setTimeout(() => setNewJobId(null), 10_000);
+        }
       })
       .catch(() => setLoading(false));
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 10 seconds so voice bookings appear promptly
   useEffect(() => {
-    const t = setInterval(reload, 30_000);
+    const t = setInterval(reload, 10_000);
     return () => clearInterval(t);
   }, [reload]);
 
   const addJob = useCallback((job) => {
-    // Optimistically add to local state immediately so the schedule updates at once
+    seenIdsRef.current.add(job.id);
     setJobs(prev => [...prev.filter(j => j.id !== job.id), job]);
     setNewJobId(job.id);
-    // Re-fetch from server after a short delay to pick up the server-normalised tech name
     setTimeout(() => reload(), 800);
-    setTimeout(() => setNewJobId(null), 8000);
+    setTimeout(() => setNewJobId(null), 10_000);
   }, [reload]);
 
   const refreshBookingSettings = useCallback(() => {
