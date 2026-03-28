@@ -318,20 +318,18 @@ VOICE-SPECIFIC FLOW — follow these stages strictly in order:
 STAGE 1 — Consent:
   The opening greeting has already asked if the caller is happy to book.
   If they say YES, sure, okay, go ahead, or any affirmative:
-    Respond with exactly: "Great! Could I grab your mobile number first — just in case we get cut off?"
-    Then wait. Do NOT ask for anything else at this stage.
+    Respond with exactly: "Great! I have your number on screen — just confirming that with you now."
+    Then immediately move to Stage 2 (confirm the mobile number from call data).
   If they say NO or want a human:
     Respond with: "No worries at all — I'll let the team know you called and someone will call you back shortly. Thanks for calling, goodbye!"
     Then end the call.
 
 STAGE 2 — Confirm Mobile:
-  Once you receive the mobile number, repeat it back clearly to confirm:
-    "Got it — just confirming that's [repeat the number digit by digit]. Is that right?"
-  If they confirm YES:
-    Ask: "Perfect! And could I get your name and service address please?"
-  If they say NO or correct it:
-    Accept the corrected number, repeat it back once more, then ask for name and address.
-  Do NOT ask for job details yet.
+  You already have the caller's mobile number from the call data (see CALLER MOBILE above).
+  Say: "I have your number as [formatted number] — is that right?"
+  If they confirm YES: proceed directly to asking for name and address.
+  If they correct it: accept the new number, confirm it back once, then ask for name and address.
+  Do NOT ask "what is your mobile number?" — you already have it.
 
 STAGE 3 — Name & Address:
   Once you have the caller's name and a service address (suburb/street is enough to proceed):
@@ -814,6 +812,21 @@ function isOfferingSlots(text) {
   return /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|morning|afternoon|which (time|day|slot|works|would)|works better|prefer|available|does that work|suit you|am\b|pm\b|\d+(am|pm))\b/i.test(text);
 }
 
+// Format an E.164 number for speech — +61401026347 → 0401 026 347
+function formatAUMobile(e164) {
+  if (!e164) return e164;
+  // Convert +61 prefix to 0
+  const local = e164.startsWith('+61') ? '0' + e164.slice(3) : e164.replace(/^\+/, '');
+  // Group: 04XX XXX XXX or 02/03/07/08 XXXX XXXX
+  if (local.startsWith('04') && local.length === 10) {
+    return `${local.slice(0,4)} ${local.slice(4,7)} ${local.slice(7)}`;
+  }
+  if (local.length === 10) {
+    return `${local.slice(0,2)} ${local.slice(2,6)} ${local.slice(6)}`;
+  }
+  return local;
+}
+
 function buildTwiML(spokenText, actionUrl, end = false) {
   const safe     = xmlEsc(spokenText);
   const model       = bookingSettings.voiceSpeechModel   || 'numbers_and_commands';
@@ -846,7 +859,7 @@ function buildTwiML(spokenText, actionUrl, end = false) {
 </Response>`;
 }
 
-async function claudeVoiceTurn(history) {
+async function claudeVoiceTurn(history, callerMobile) {
   const hasAI = geminiClient || anthropicClient;
   if (!hasAI) {
     const isFirst = history.filter(m => m.role === 'user').length <= 1;
@@ -854,7 +867,18 @@ async function claudeVoiceTurn(history) {
       ? `${promptSettings.greeting} Would you like to book a job with us today?`
       : "Thanks for that. Could you tell me a bit more about what you need?";
   }
-  return aiGenerate(buildSystem('voip'), history, 600);
+  // Build system prompt, with caller's mobile pre-filled if available
+  let system = buildSystem('voip');
+  if (callerMobile) {
+    const formatted = formatAUMobile(callerMobile);
+    system += `\n\nCALLER MOBILE (from call data): ${formatted} (E.164: ${callerMobile})
+IMPORTANT — Do NOT ask for the mobile number. You already have it.
+In Stage 2, instead say: "I have your number as ${formatted} — is that right?"
+If they confirm, proceed directly to name and address.
+If they correct it, accept the corrected number and move on.
+Always use ${formatted} in the BOOKING JSON mobile field unless the caller provides a different number.`;
+  }
+  return aiGenerate(system, history, 600);
 }
 
 // ── /api/voice/incoming — inbound call webhook ──────────────────────
@@ -952,7 +976,7 @@ app.post('/api/voice/process', async (req, res) => {
   session.turnCount++;
 
   try {
-    const raw = await claudeVoiceTurn(session.history);
+    const raw = await claudeVoiceTurn(session.history, session.from);
 
     // ── Address validation in voice turn ────────────────────────────
     let processedRaw = raw;
