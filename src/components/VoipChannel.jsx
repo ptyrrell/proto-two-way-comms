@@ -371,7 +371,7 @@ function BrowserVoiceTest() {
    ════════════════════════════════════════════════════════════════════ */
 function LiveCallPanel() {
   const [config, setConfig]           = useState({ voiceNumber: null, voiceEnabled: false, voiceOptions: {}, aiEngine: 'gemini-flash' });
-  const [bookingSettings, setBookingSettings] = useState({ aiEngine: 'gemini-flash', voiceModel: 'Google.en-AU-Wavenet-C' });
+  const [bookingSettings, setBookingSettings] = useState({ aiEngine: 'claude', voiceModel: 'Google.en-AU-Wavenet-C' });
   const [configuring, setConfiguring] = useState(false);
   const [configResult, setConfigResult] = useState(null);
   const [sessions, setSessions]       = useState([]);

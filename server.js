@@ -129,7 +129,7 @@ let bookingSettings = {
   // Job duration
   defaultJobDuration: 1,        // default job length in hours (60 min)
   // VOIP / IVR settings
-  aiEngine:         'gemini-flash',          // AI engine: 'gemini-flash' | 'gemini-pro' | 'claude'
+  aiEngine:         'claude',               // AI engine: 'gemini-flash' | 'gemini-pro' | 'claude'
   voiceModel:       'Google.en-AU-Wavenet-C', // TTS voice (Google Wavenet AU female, real AU accent)
   voiceSpeechModel:   'numbers_and_commands', // STT model
   voiceEnhanced:      true,  // Twilio enhanced STT model (higher accuracy, extra cost)

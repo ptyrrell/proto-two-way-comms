@@ -70,7 +70,7 @@ export default function TechSettings({ onClose }) {
     lunchEnabled:       true,
     lunchStart:         12,
     lunchEnd:           13,
-    aiEngine:           'gemini-flash',
+    aiEngine:           'claude',
     voiceModel:         'Google.en-AU-Wavenet-C',
     voiceSpeechModel:   'numbers_and_commands',
     voiceEnhanced:      true,
