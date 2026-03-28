@@ -831,14 +831,17 @@ function buildTwiML(spokenText, actionUrl, end = false) {
   <Hangup/>
 </Response>`;
   }
+  // <Say> BEFORE <Gather> so the TTS always plays fully before Twilio starts listening.
+  // This prevents the greeting/response being cut off by background noise triggering
+  // speech detection mid-playback.
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Say voice="${voice}" language="${lang}">${safe}</Say>
   <Gather input="speech" action="${actionUrl}" method="POST"
           timeout="${timeout}" speechTimeout="${speechTmt}" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
-    <Say voice="${voice}" language="${lang}">${safe}</Say>
   </Gather>
-  <Say voice="${voice}" language="${lang}">Sorry, I didn't catch that. Let me try again.</Say>
+  <Say voice="${voice}" language="${lang}">Sorry, I didn't quite catch that. Please go ahead.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
 </Response>`;
 }
@@ -860,14 +863,15 @@ app.post('/api/voice/incoming', (req, res) => {
   console.log(`📞 Inbound call  CallSid=${CallSid}  From=${From}`);
 
   voiceSessions.set(CallSid, {
-    from:       From || 'unknown',
-    to:         To   || process.env.TWILIO_FROM_NUMBER,
-    history:    [],
-    turns:      [],
-    turnCount:  0,
-    startedAt:  new Date().toISOString(),
-    status:     'active',
-    booking:    null,
+    from:         From || 'unknown',
+    to:           To   || process.env.TWILIO_FROM_NUMBER,
+    history:      [],
+    turns:        [],
+    turnCount:    0,
+    noSpeechCount: 0,   // tracks consecutive empty-speech turns to break infinite loops
+    startedAt:    new Date().toISOString(),
+    status:       'active',
+    booking:      null,
   });
 
   const greeting         = xmlEsc(promptSettings.voiceGreeting || "Sorry, all our humans are busy right now. Would you be up to booking a job with us today?");
@@ -879,12 +883,13 @@ app.post('/api/voice/incoming', (req, res) => {
   const { voice, lang }  = getVoiceMeta();
 
   res.set('Content-Type', 'text/xml');
+  // <Say> BEFORE <Gather> — greeting plays fully, then Twilio starts listening fresh
   res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  <Say voice="${voice}" language="${lang}">${greeting}</Say>
   <Gather input="speech" action="${actionUrl}" method="POST"
           timeout="${timeout}" speechTimeout="${speechTmt}" speechModel="${model}" enhanced="${enhanced}"
           language="en-AU" hints="${VOICE_HINTS}">
-    <Say voice="${voice}" language="${lang}">${greeting}</Say>
   </Gather>
   <Say voice="${voice}" language="${lang}">I didn't catch that. Let me try again.</Say>
   <Redirect method="POST">${actionUrl}</Redirect>
@@ -904,16 +909,28 @@ app.post('/api/voice/process', async (req, res) => {
 <Response><Redirect method="POST">${BASE_URL}/api/voice/incoming</Redirect></Response>`);
   }
 
-  // No speech detected — re-ask
+  // No speech detected — re-ask with loop protection
   if (!SpeechResult) {
+    session.noSpeechCount = (session.noSpeechCount || 0) + 1;
     res.set('Content-Type', 'text/xml');
-    return res.send(buildTwiML("I didn't catch that. Could you repeat what you said?", actionUrl));
+    if (session.noSpeechCount >= 3) {
+      // Break the loop — give up gracefully
+      session.status = 'ended';
+      session.noSpeechCount = 0;
+      return res.send(buildTwiML(
+        "I'm having trouble hearing you. Please call back when you're ready — our team is here to help. Goodbye!",
+        actionUrl, true
+      ));
+    }
+    return res.send(buildTwiML("I didn't quite catch that — could you say that again?", actionUrl));
   }
+  session.noSpeechCount = 0; // reset on successful speech
 
-  // Low confidence — ask to repeat
+  // Low confidence — ask to repeat (counts toward loop protection too)
   if (parseFloat(Confidence || '1') < 0.35) {
+    session.noSpeechCount = (session.noSpeechCount || 0) + 1;
     res.set('Content-Type', 'text/xml');
-    return res.send(buildTwiML("Sorry, I had trouble hearing that. Could you say it again?", actionUrl));
+    return res.send(buildTwiML("Sorry, I didn't catch that — could you say it again?", actionUrl));
   }
 
   // Max turns guard (configurable via bookingSettings.voiceMaxTurns)
