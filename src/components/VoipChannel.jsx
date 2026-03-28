@@ -370,17 +370,38 @@ function BrowserVoiceTest() {
    LIVE CALL (Twilio) — existing panel
    ════════════════════════════════════════════════════════════════════ */
 function LiveCallPanel() {
-  const [config, setConfig]           = useState({ voiceNumber: null, voiceEnabled: false });
+  const [config, setConfig]           = useState({ voiceNumber: null, voiceEnabled: false, voiceOptions: {}, aiEngine: 'gemini-flash' });
+  const [bookingSettings, setBookingSettings] = useState({ aiEngine: 'gemini-flash', voiceModel: 'Google.en-AU-Wavenet-C' });
   const [configuring, setConfiguring] = useState(false);
   const [configResult, setConfigResult] = useState(null);
   const [sessions, setSessions]       = useState([]);
   const [copied, setCopied]           = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [saved, setSaved]             = useState(false);
   const pollRef                       = useRef(null);
   const bottomRef                     = useRef(null);
 
   useEffect(() => {
     fetch('/api/config').then(r => r.json()).then(d => setConfig(d)).catch(() => {});
+    fetch('/api/settings/booking').then(r => r.json()).then(d => setBookingSettings(d)).catch(() => {});
   }, []);
+
+  const saveSetting = async (patch) => {
+    const next = { ...bookingSettings, ...patch };
+    setBookingSettings(next);
+    setSaving(true);
+    try {
+      await fetch('/api/settings/booking', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const poll = () => {
@@ -470,6 +491,58 @@ function LiveCallPanel() {
             : `✗ ${configResult.error}`}
         </div>
       )}
+
+      {/* ── Quick engine + voice controls ── */}
+      <div className="voip-engine-bar">
+        <div className="voip-engine-item">
+          <label className="voip-engine-label">🤖 AI Engine</label>
+          <select
+            className="voip-engine-select"
+            value={bookingSettings.aiEngine || 'gemini-flash'}
+            onChange={e => saveSetting({ aiEngine: e.target.value })}
+          >
+            <optgroup label="Google Gemini">
+              <option value="gemini-flash">Gemini 2.5 Flash ★</option>
+              <option value="gemini-pro">Gemini 2.5 Flash (Pro)</option>
+            </optgroup>
+            <optgroup label="Anthropic">
+              <option value="claude">Claude Sonnet 4.5</option>
+            </optgroup>
+          </select>
+        </div>
+        <div className="voip-engine-item">
+          <label className="voip-engine-label">🎙 Voice</label>
+          <select
+            className="voip-engine-select"
+            value={bookingSettings.voiceModel || 'Google.en-AU-Wavenet-C'}
+            onChange={e => saveSetting({ voiceModel: e.target.value })}
+          >
+            <optgroup label="🇦🇺 AU — Google Wavenet">
+              <option value="Google.en-AU-Wavenet-C">Wavenet-C · AU Female ★</option>
+              <option value="Google.en-AU-Wavenet-A">Wavenet-A · AU Female</option>
+              <option value="Google.en-AU-Wavenet-B">Wavenet-B · AU Male</option>
+              <option value="Google.en-AU-Wavenet-D">Wavenet-D · AU Male</option>
+            </optgroup>
+            <optgroup label="🇦🇺 AU — Google Neural2 (HD)">
+              <option value="Google.en-AU-Neural2-A">Neural2-A · AU Female HD</option>
+              <option value="Google.en-AU-Neural2-B">Neural2-B · AU Male HD</option>
+              <option value="Google.en-AU-Neural2-C">Neural2-C · AU Female HD</option>
+              <option value="Google.en-AU-Neural2-D">Neural2-D · AU Male HD</option>
+            </optgroup>
+            <optgroup label="🇺🇸 US — Amazon Polly">
+              <option value="Polly.Joanna">Joanna · US Female</option>
+              <option value="Polly.Matthew">Matthew · US Male</option>
+              <option value="Polly.Joanna-Neural">Joanna · US Female Neural</option>
+            </optgroup>
+            <optgroup label="🇬🇧 GB — Amazon Polly">
+              <option value="Polly.Amy">Amy · UK Female</option>
+              <option value="Polly.Brian">Brian · UK Male</option>
+            </optgroup>
+          </select>
+        </div>
+        {saving && <span className="voip-engine-status saving">saving…</span>}
+        {saved  && <span className="voip-engine-status ok">✓ saved</span>}
+      </div>
 
       {!displaySession && (
         <div className="voip-how-it-works">

@@ -687,6 +687,27 @@ body {
 .voip-config-result.ok  { background: rgba(16,217,144,.08); color: #10d990; border-bottom: 1px solid rgba(16,217,144,.15); }
 .voip-config-result.err { background: rgba(244,63,94,.08);  color: #f43f5e; border-bottom: 1px solid rgba(244,63,94,.15); }
 
+/* Engine + Voice quick-switch bar */
+.voip-engine-bar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 10px 18px; background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.07); flex-shrink: 0;
+}
+.voip-engine-item { display: flex; align-items: center; gap: 7px; }
+.voip-engine-label {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  white-space: nowrap; letter-spacing: 0.02em;
+}
+.voip-engine-select {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  color: #e8eaf0; border-radius: 6px; padding: 4px 8px;
+  font-size: 12px; cursor: pointer; outline: none;
+}
+.voip-engine-select:focus { border-color: var(--accent); }
+.voip-engine-status { font-size: 11px; font-weight: 600; margin-left: 4px; }
+.voip-engine-status.saving { color: var(--muted); }
+.voip-engine-status.ok     { color: #10d990; }
+
 /* How it works */
 .voip-how-it-works {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
