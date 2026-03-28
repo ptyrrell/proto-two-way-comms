@@ -723,6 +723,9 @@ app.post('/api/chat', async (req, res) => {
 
         jobs.push(booking);
         console.log(`✅ Chat booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech} dur: ${dur}h`);
+
+        // Send confirmation SMS to the mobile number provided in the booking
+        if (booking.mobile) sendConfirmationSMS(booking.mobile, booking);
       } catch (e) { console.error('Booking parse error', e); }
     }
 
@@ -805,9 +808,53 @@ const VOICE_HINTS = [
   'HVAC,air conditioning,electrical,plumbing,refrigeration,booking,appointment,urgent,emergency,quote,service,breakdown,repair,installation',
   // address terms
   'street,road,avenue,drive,place,court,crescent,boulevard,lane,unit,level,floor,apartment',
+  // common words that numbers_and_commands wrongly converts to digits
+  'field,FieldInsight,field service,field insight,feel,film,fill,filter,Phil,Philip',
+  'yes,no,yeah,nope,correct,that is correct,that is right,confirmed,confirm,cancel',
 ].join(',');
 
-// Detect when Fiona is offering time slots — give caller 5s to think
+// ── Shared SMS booking confirmation ────────────────────────────────
+function sendConfirmationSMS(toNumber, booking) {
+  if (!twilioClient || !toNumber || toNumber === 'unknown') return;
+  const fmtHr = h => h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h-12}pm`;
+  const dateFmt = booking.date && booking.date !== 'TBD'
+    ? new Date(booking.date + 'T12:00:00').toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' })
+    : 'TBD — team will call to confirm';
+  const timeFmt = booking.startHour
+    ? `${fmtHr(booking.startHour)}–${fmtHr(booking.startHour + (booking.duration||1))}`
+    : '';
+  const isQuote = booking.status === 'quote-pending';
+  const body = isQuote
+    ? [
+        `Hi ${booking.customer || 'there'} — thanks for contacting FieldInsight!`,
+        ``,
+        `Your quote request has been received:`,
+        `📋 ${booking.description || booking.type || 'Quote'}`,
+        `📍 ${booking.address || 'Address on file'}`,
+        ``,
+        `Our team will review your details and call you back to arrange a time.`,
+        `Questions? Reply to this SMS.`,
+        `— FieldInsight Team`,
+      ].join('\n')
+    : [
+        `Hi ${booking.customer || 'there'} — your FieldInsight booking is confirmed! ✓`,
+        ``,
+        `📋 ${booking.type || 'Service Call'}`,
+        `📅 ${dateFmt}${timeFmt ? ` at ${timeFmt}` : ''}`,
+        `📍 ${booking.address || 'Address on file'}`,
+        ``,
+        `We'll send a reminder before your appointment.`,
+        `Questions? Reply to this SMS.`,
+        `— FieldInsight Team`,
+      ].join('\n');
+
+  twilioClient.messages.create({
+    to:   toNumber,
+    from: process.env.TWILIO_FROM_NUMBER,
+    body,
+  }).then(() => console.log(`📱 Confirmation SMS → ${toNumber}`))
+    .catch(e  => console.error(`SMS send error: ${e.message}`));
+}
 function isOfferingSlots(text) {
   return /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|morning|afternoon|which (time|day|slot|works|would)|works better|prefer|available|does that work|suit you|am\b|pm\b|\d+(am|pm))\b/i.test(text);
 }
@@ -1010,31 +1057,9 @@ app.post('/api/voice/process', async (req, res) => {
         session.booking = booking;
         console.log(`✅ Voice booking: ${booking.id} — ${booking.customer} → tech: ${booking.tech} dur: ${dur}h`);
 
-        // Send SMS confirmation to the caller
-        if (twilioClient && session.from && session.from !== 'unknown') {
-          const fmtHr = h => h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h-12}pm`;
-          const dateFmt = booking.date !== 'TBD'
-            ? new Date(booking.date).toLocaleDateString('en-AU', { weekday:'long', day:'numeric', month:'long' })
-            : 'TBD';
-          const timeFmt = booking.startHour ? `${fmtHr(booking.startHour)}–${fmtHr(booking.startHour + (booking.duration||1))}` : 'TBD';
-          const smsBody = [
-            `Hi ${booking.customer || 'there'} — your FieldInsight booking is confirmed! ✓`,
-            ``,
-            `📋 ${booking.type || 'Service Call'}`,
-            `📅 ${dateFmt} at ${timeFmt}`,
-            `📍 ${booking.address || 'Address on file'}`,
-            ``,
-            `We'll send a reminder before your appointment.`,
-            `Questions? Reply to this SMS or call us.`,
-            `— FieldInsight Team`,
-          ].join('\n');
-          twilioClient.messages.create({
-            to:   session.from,
-            from: process.env.TWILIO_FROM_NUMBER,
-            body: smsBody,
-          }).then(() => console.log(`📱 Confirmation SMS sent to ${session.from}`))
-            .catch(e  => console.error(`SMS error: ${e.message}`));
-        }
+        // Send SMS confirmation to the caller's number (captured from Twilio From)
+        const smsTo = booking.mobile || session.from;
+        sendConfirmationSMS(smsTo, booking);
 
       } catch (e) { console.error('Voice booking parse error', e); }
     }
